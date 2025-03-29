@@ -1,0 +1,13 @@
+# Escludi l'ambiente virtuale
+venv/
+
+# Escludi file temporanei di Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Escludi file di log ed editor
+*.log
+.DS_Store
+.vscode/
+.idea/
