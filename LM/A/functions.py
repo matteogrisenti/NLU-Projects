@@ -1,6 +1,9 @@
 import math
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
+import numpy as np
+import os
 
 
 def train_loop(data, optimizer, criterion, model, clip=5):
@@ -92,4 +95,48 @@ def init_weights(mat):
 def save_model(model):
     path = 'bin/model.pt'
     torch.save(model.state_dict(), path)
+
+
+
+
+# Plotting functions of the losses during training and validation
+def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_values, filename='plot.png'):
+    
+    # Plot two graphs and save the result in a PNG file:
+    # 1. Loss trend during training (blue) and validation (red).
+    # 2. Perplexity (PPL) trend during validation (green).
+
+    # Parameters:
+    # - sampled_epochs: list of sampled epochs
+    # - loss_train: list of loss values ​​during training
+    # - loss_dev: list of loss values ​​during validation
+    # - ppl_dev_values: list of PPL values ​​during validation
+
+    fig, axes = plt.subplots(2, 1, figsize=(8, 10))
+    
+    # Primo grafico: Loss Function
+    axes[0].plot(sampled_epochs, losses_train, linestyle='-', color='b', label='Training Loss')
+    axes[0].plot(sampled_epochs, losses_dev, linestyle='-', color='r', label='Validation Loss')
+    axes[0].xlabel('Epoche')
+    axes[0].ylabel('Loss')
+    axes[0].title('Loss Trend')
+    axes[0].legend()
+    axes[0].grid(True, linestyle='--', alpha=0.6)
+
+    # Secondo grafico: Perplexity
+    axes[1].plot(sampled_epochs, ppl_dev_values, marker='s', linestyle='-', color='g', label='Validation PPL')
+    axes[1].set_xlabel('Epoche')
+    axes[1].set_ylabel('Perplexity (PPL)')
+    axes[1].set_title('Perplexity Trend')
+    axes[1].legend()
+    axes[1].grid(True, linestyle='--', alpha=0.6)
+
+    # Creare il percorso completo del file
+    plt.tight_layout()
+    filepath = os.path.join('plots', filename)
+
+    plt.savefig(filepath, dpi=300)
+
+
+
 

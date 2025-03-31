@@ -10,9 +10,14 @@ class LM_RNN(nn.Module):
     def __init__(self, emb_size, hidden_size, output_size, pad_index=0, out_dropout=0.1,
                  emb_dropout=0.1, n_layers=1):
         super(LM_RNN, self).__init__()
-        # Token ids to vectors, we will better see this in the next lab 
+        # This Model learn: 
+        # 1. The embedding layer that maps the token ids to vectors
+        # 2. The RNN layer that learns the sequence of the tokens
+
+        # 1. Token ids emdedding to vectors
         self.embedding = nn.Embedding(output_size, emb_size, padding_idx=pad_index)
-        # Pytorch's RNN layer: https://pytorch.org/docs/stable/generated/torch.nn.RNN.html
+        
+        # 2. Pytorch's RNN layer: https://pytorch.org/docs/stable/generated/torch.nn.RNN.html
         self.rnn = nn.RNN(emb_size, hidden_size, n_layers, bidirectional=False, batch_first=True)    
         self.pad_token = pad_index
         # Linear layer to project the hidden layer to our output space 

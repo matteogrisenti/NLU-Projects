@@ -15,6 +15,7 @@ def read_file(path, eos_token="<eos>"):
 
 
 # LANG: This class computes and stores our vocab: Word to ids and ids to word
+# NB: the all process is word -> id ( made by LANG ) ans id -> embedding vector ( made by the model )
 class Lang():
 
     def __init__(self, corpus, special_tokens=[]):
@@ -61,7 +62,7 @@ class PennTreeBank (data.Dataset):
         return len(self.source)
 
     def __getitem__(self, idx):
-        # Returns a sample of the dataset, which is a dictionary with:
+        # Returns 1 sample of the dataset, which is a dictionary with:
         # - "source": a sequence of IDs (torch.LongTensor) representing the input.
         # - "target": a sequence of IDs (torch.LongTensor) representing the output.
 

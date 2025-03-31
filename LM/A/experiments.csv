@@ -1,0 +1,2 @@
+Model ID, Network Type, Learning Rate, Droput Layer, Optimizer, PPL Training, PPL Test, Notes
+1, RNN, 1.5, /, SGD, 174.6, 161.9 , "patient expired at the 15° epoche"
