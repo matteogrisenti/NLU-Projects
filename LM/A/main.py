@@ -18,6 +18,7 @@ from functions import init_weights, train_loop, eval_loop, plot_training_progres
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using device: ", DEVICE)
 
 
 train_raw = read_file("dataset/PennTreeBank/ptb.train.txt")
@@ -43,12 +44,15 @@ test_loader  = DataLoader(test_dataset,  batch_size=128, collate_fn=partial(coll
 
 
 # Model configuration 
-hid_size = 200
+hid_size = 200  # Original 200
 emb_size = 300
-lr = 1.5 # This is definitely not good for SGD
-# NB: With SGD try with an higher learning rate (> 1 for instance)
+lr = 1 
 clip = 5 # Clip the gradient -> avoid exploding gradients
 
+print("Network Configuration:")
+print("\tHidden size: ", hid_size)  
+print("\tEmbedding size: ", emb_size)
+print("\tLearning rate: ", lr)
 
 # Experiment also with a smaller or bigger model by changing hid and emb sizes 
 # NB: A large model tends to overfit
@@ -98,7 +102,7 @@ for epoch in pbar:
             patience -= 1
             
         if patience <= 0: # Early stopping with patience
-            print("Early stopping: ", ppl_list_dev[-3:])
+            print(" Early stopping \n\tBest PPL: ", best_ppl, "\n\tLast PPL:", ppl_list_dev[-3:])
             break # Not nice but it keeps the code clean
 
 best_model.to(DEVICE)

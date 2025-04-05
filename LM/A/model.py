@@ -28,3 +28,6 @@ class LM_RNN(nn.Module):
         rnn_out, _  = self.rnn(emb)
         output = self.output(rnn_out).permute(0,2,1)
         return output 
+    
+
+

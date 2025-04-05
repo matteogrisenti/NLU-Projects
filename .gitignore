@@ -1,5 +1,5 @@
 # Escludi l'ambiente virtuale
-venv/
+myenv/
 
 # Escludi file temporanei di Python
 __pycache__/

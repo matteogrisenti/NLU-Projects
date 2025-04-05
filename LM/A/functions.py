@@ -117,9 +117,9 @@ def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_val
     # Primo grafico: Loss Function
     axes[0].plot(sampled_epochs, losses_train, linestyle='-', color='b', label='Training Loss')
     axes[0].plot(sampled_epochs, losses_dev, linestyle='-', color='r', label='Validation Loss')
-    axes[0].xlabel('Epoche')
-    axes[0].ylabel('Loss')
-    axes[0].title('Loss Trend')
+    axes[0].set_xlabel('Epoche')  # Corretto
+    axes[0].set_ylabel('Loss')    # Corretto
+    axes[0].set_title('Loss Trend')  # Corretto
     axes[0].legend()
     axes[0].grid(True, linestyle='--', alpha=0.6)
 
