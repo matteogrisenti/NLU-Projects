@@ -1,10 +1,14 @@
-Model ID, Network Type, Learning Rate, Hidden Size, Droput Layer, Optimizer, Best PPL Training, PPL Test, Notes
-1, RNN,  1.5, 200, /, SGD, 172.1, 163.4, "patient expired at the 12° epoche"
-2, RNN,  1,   200, /, SGD, 166.5, 158.2, "patient expired at the 22° epoche"
-3, RNN,  0.8, 200, /, SGD, 166.3, 158.0, "patient expired at the 23° epoche"
-4, RNN,  0.5, 200, /, SGD, 170.3, 161.8, "patient expired at the 24° epoche"
-5, RNN,  0.2, 200, /, SGD, 169.4, 159.9, "patient expired at the 69° epoche"
-6, RNN,  0.8, 150, /, SGD, 177.4, 168.9, "patient expired at the 20° epoche"
+Model ID,Network Type,Learning Rate,Hidden Size,Droput Layer,Optimizer,Best PPL Training,PPL Test,Notes
+1,RNN,1.5,200,/,SGD,172.1,163.4,"patient expired at the 12° epoche"
+2,RNN,1,200,/,SGD,166.5,158.2,"patient expired at the 22° epoche"
+3,RNN,0.8,200,/,SGD,166.3,158.0,"patient expired at the 23° epoche"
+4,RNN,0.5,200,/,SGD,170.3,161.8,"patient expired at the 24° epoche"
+5,RNN,0.2,200,/,SGD,169.4,159.9,"patient expired at the 69° epoche"
+6,RNN,0.8,150,/,SGD,177.4,168.9,"patient expired at the 20° epoche"
 --- LSTM ---
-7, LSTM, 1,   200, /, SGD, 149.8, 143.7, "patient expired at the 34° epoche"
-8, LSTM, 0.1, 200, /, SGD, 177.6, 171.0, "all epochs finished"
+7,LSTM,1,200,/,SGD,149.8,143.7,"patient expired at the 34° epoche"
+8,LSTM,0.1,200,/,SGD,177.6,171.0,"all epochs finished"
+9,LSTM,0.5,200,/,SGD,153.0,146.8,"patient expired at the 55° epoche"
+10,LSTM,0.8,200,/,SGD,152.1,146.5,"patient expired at the 35° epoche"
+11,LSTM,1.5,200,/,SGD,149.2,143.1,"patient expired at the 24° epoche"
+12,LSTM,2,200,/,SGD,151,144.9,"patient expired at the 15° epoche"
