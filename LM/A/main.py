@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 
 from utils import read_file, Lang, PennTreeBank, collate_fn
 from model import LM_RNN
-from functions import init_weights, train_loop, eval_loop, plot_training_progress
+from functions import init_weights, train_loop, eval_loop, plot_training_progress, save_model
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -46,7 +46,7 @@ test_loader  = DataLoader(test_dataset,  batch_size=128, collate_fn=partial(coll
 # Model configuration 
 hid_size = 200  # Original 200
 emb_size = 300  # Original 300
-lr = 2
+lr = 3.5
 clip = 5 # Clip the gradient -> avoid exploding gradients
 
 print("Network Configuration:")
@@ -108,7 +108,7 @@ for epoch in pbar:
 best_model.to(DEVICE)
 
 # Save the model
-torch.save(best_model.state_dict(), 'bin/LSTM_LN-2.pt')
+save_model(best_model, "LSTM", lr)
 
 plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, filename='plot_model_1.png')
 final_ppl,  _ = eval_loop(test_loader, criterion_eval, best_model)    

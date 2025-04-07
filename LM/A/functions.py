@@ -92,10 +92,9 @@ def init_weights(mat):
 
 
 
-def save_model(model):
-    path = 'bin/model.pt'
+def save_model(model, name, learning_rate):
+    path = f'bin/{name}_LM-{learning_rate}.pt'
     torch.save(model.state_dict(), path)
-
 
 
 
