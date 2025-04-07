@@ -46,13 +46,17 @@ test_loader  = DataLoader(test_dataset,  batch_size=128, collate_fn=partial(coll
 # Model configuration 
 hid_size = 200  # Original 200
 emb_size = 300  # Original 300
-lr = 3.5
+dropout_emb = 0.1
+dropout_out = 0.1
+lr = 1
 clip = 5 # Clip the gradient -> avoid exploding gradients
 
 print("Network Configuration:")
 print("\tHidden size: ", hid_size)  
 print("\tEmbedding size: ", emb_size)
 print("\tLearning rate: ", lr)
+print("\tDropout embedding: ", dropout_emb)
+print("\tDropout output: ", dropout_out)
 
 # Experiment also with a smaller or bigger model by changing hid and emb sizes 
 # NB: A large model tends to overfit
@@ -62,7 +66,7 @@ print("\tLearning rate: ", lr)
 
 vocab_len = len(lang.word2id)
 
-model = LM_RNN(emb_size, hid_size, vocab_len, pad_index=lang.word2id["<pad>"]).to(DEVICE)
+model = LM_RNN(emb_size, hid_size, vocab_len, pad_index=lang.word2id["<pad>"], out_dropout=dropout_out, emb_dropout=dropout_emb).to(DEVICE)
 model.apply(init_weights)
 
 optimizer = optim.SGD(model.parameters(), lr=lr)
@@ -108,8 +112,10 @@ for epoch in pbar:
 best_model.to(DEVICE)
 
 # Save the model
-save_model(best_model, "LSTM", lr)
+save_model(best_model, "DROP-OUT", lr, dropout_emb=dropout_emb, dropout_out=dropout_out)
 
-plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, filename='plot_model_1.png')
+# Plot the model
+plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, filename='DROP-OUT', lr=lr, dropout_emb=dropout_emb, dropout_out=dropout_out)
+
 final_ppl,  _ = eval_loop(test_loader, criterion_eval, best_model)    
 print('Test ppl: ', final_ppl)

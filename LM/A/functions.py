@@ -90,16 +90,26 @@ def init_weights(mat):
                     m.bias.data.fill_(0.01)
 
 
+def path_define(name, learning_rate, dropout_emb = None, dropout_out = None):
+    path = f'{name}_LM-{str(learning_rate).replace(".", ",")}'
+
+    if dropout_emb is not None:
+        path += f'_emb_{str(dropout_emb).replace(".", ",")}'
+    if dropout_out is not None:
+        path += f'_out_{str(dropout_out).replace(".", ",")}'
+
+    return path
 
 
-def save_model(model, name, learning_rate):
-    path = f'bin/{name}_LM-{learning_rate}.pt'
+def save_model(model, name, learning_rate, dropout_emb = None, dropout_out = None):
+    path = path_define(name, learning_rate, dropout_emb = dropout_emb, dropout_out= dropout_out)
+    path = f'bin/' + path + f'.pt'
     torch.save(model.state_dict(), path)
 
 
 
 # Plotting functions of the losses during training and validation
-def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_values, filename='plot.png'):
+def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_values, filename='PLOT', lr=None, dropout_emb=None, dropout_out=None):
     
     # Plot two graphs and save the result in a PNG file:
     # 1. Loss trend during training (blue) and validation (red).
@@ -132,7 +142,9 @@ def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_val
 
     # Creare il percorso completo del file
     plt.tight_layout()
-    filepath = os.path.join('plots', filename)
+
+    path = path_define(filename, lr, dropout_emb=dropout_emb, dropout_out=dropout_out)
+    filepath = os.path.join('plots', path + '.png')
 
     plt.savefig(filepath, dpi=300)
 
