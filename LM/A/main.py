@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 
 from utils import read_file, Lang, PennTreeBank, collate_fn
 from model import LM_RNN
-from functions import init_weights, train_loop, eval_loop, plot_training_progress, save_model
+from functions import init_weights, train_loop, eval_loop, plot_training_progress, save_model, save_experiment_results
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -76,6 +76,7 @@ criterion_eval = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"], reducti
 
 
 n_epochs = 100
+last_epoch = 0
 patience = 3        # stop training if no improvement in 3 epochs in row -> model is overfitting
 losses_train = []
 losses_dev = []
@@ -89,6 +90,7 @@ pbar = tqdm(range(1,n_epochs))
 for epoch in pbar:
     loss = train_loop(train_loader, optimizer, criterion_train, model, clip)    
     if epoch % 1 == 0:
+        last_epoch += 1 
         sampled_epochs.append(epoch)
         losses_train.append(np.asarray(loss).mean())
         ppl_dev, loss_dev = eval_loop(dev_loader, criterion_eval, model)
@@ -106,7 +108,7 @@ for epoch in pbar:
             patience -= 1
             
         if patience <= 0: # Early stopping with patience
-            print(" Early stopping \n\tBest PPL: ", best_ppl, "\n\tLast PPL:", ppl_list_dev[-3:])
+            print(" Early stopping at epoch ", last_epoch, " \n\tBest PPL: ", best_ppl, "\n\tLast PPL:", ppl_list_dev[-3:])
             break # Not nice but it keeps the code clean
 
 best_model.to(DEVICE)
@@ -117,5 +119,7 @@ save_model(best_model, "DROP-OUT", lr, dropout_emb=dropout_emb, dropout_out=drop
 # Plot the model
 plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, filename='DROP-OUT', lr=lr, dropout_emb=dropout_emb, dropout_out=dropout_out)
 
-final_ppl,  _ = eval_loop(test_loader, criterion_eval, best_model)    
+final_ppl, final_loss, ci_loss, ci_ppl = eval_loop(test_loader, criterion_eval, best_model)    
+
 print('Test ppl: ', final_ppl)
+save_experiment_results("DROP-OUT",lr, hid_size, emb_size, dropout_emb, dropout_out, 'SGD', last_epoch, final_ppl, final_loss, ci_loss, ci_ppl)

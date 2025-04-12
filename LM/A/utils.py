@@ -1,14 +1,15 @@
 import torch
 import torch.utils.data as data
 
-# LOADING CORPUS: organize each line as a sentence
+# LOADING CORPUS: organize each text as a list of sentence
 # and add an end of sentence token <eos> to each sentence
-# group the sentences in a list
 def read_file(path, eos_token="<eos>"):
-    output = []
-    with open(path, "r") as f:
-        for line in f.readlines():
-            output.append(line.strip() + " " + eos_token)
+    output = []                                             # List of sentences
+
+    with open(path, "r") as f:                              # Open the file in read mode
+        for line in f.readlines():                          # Read each line in the file
+            output.append(line.strip() + " " + eos_token)   # Add the end of sentence token to each line
+    
     return output
 
 
@@ -24,16 +25,19 @@ class Lang():
     
     # GET VOCABULARY: create a dictionary that maps each word to an index
     def get_vocab(self, corpus, special_tokens=[]):
-        output = {}
-        i = 0 
-        for st in special_tokens:
-            output[st] = i
+        output = {}                     # Dictionary to store the mapping of words to ids
+        i = 0                           # Counter for the ids
+       
+        for st in special_tokens:        # Add special tokens to the mapping
+            output[st] = i               # Add the special token to the mapping
             i += 1
-        for sentence in corpus:
-            for w in sentence.split():
+       
+        for sentence in corpus:             # For each sentence in the corpus
+            for w in sentence.split():      # For each word in the sentence
                 if w not in output:
                     output[w] = i
                     i += 1
+                    
         return output
     
 

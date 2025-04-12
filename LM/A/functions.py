@@ -4,6 +4,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import scipy.stats as st
 
 
 def train_loop(data, optimizer, criterion, model, clip=5):
@@ -51,6 +52,7 @@ def eval_loop(data, eval_criterion, model):
     model.eval()
     loss_to_return = []
     loss_array = []
+    loss_array_norm = []
     number_of_tokens = []
 
     # softmax = nn.Softmax(dim=1) # Use Softmax if you need the actual probability
@@ -58,13 +60,20 @@ def eval_loop(data, eval_criterion, model):
         for sample in data:
             output = model(sample['source'])
             loss = eval_criterion(output, sample['target'])
+
             loss_array.append(loss.item())
             number_of_tokens.append(sample["number_tokens"])
+            loss_array_norm.append(loss.item() / sample["number_tokens"])
             
     ppl = math.exp(sum(loss_array) / sum(number_of_tokens))
     loss_to_return = sum(loss_array) / sum(number_of_tokens)
 
-    return ppl, loss_to_return
+    # Confidence interval for the loss
+    losses = np.array(loss_array_norm)
+    ci_loss = st.t.interval(0.95, len(losses)-1, loc=np.mean(losses), scale=st.sem(losses))
+    ci_ppl = (np.exp(ci_loss[0]), np.exp(ci_loss[1]))
+
+    return ppl, loss_to_return, ci_loss, ci_ppl
 
 
 
@@ -90,6 +99,8 @@ def init_weights(mat):
                     m.bias.data.fill_(0.01)
 
 
+
+# Function to define the path for saving the model
 def path_define(name, learning_rate, dropout_emb = None, dropout_out = None):
     path = f'{name}_LM-{str(learning_rate).replace(".", ",")}'
 
@@ -126,11 +137,14 @@ def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_val
     # Primo grafico: Loss Function
     axes[0].plot(sampled_epochs, losses_train, linestyle='-', color='b', label='Training Loss')
     axes[0].plot(sampled_epochs, losses_dev, linestyle='-', color='r', label='Validation Loss')
-    axes[0].set_xlabel('Epoche')  # Corretto
-    axes[0].set_ylabel('Loss')    # Corretto
-    axes[0].set_title('Loss Trend')  # Corretto
+    axes[0].set_xlabel('Epoche')  
+    axes[0].set_ylabel('Loss')   
+    axes[0].set_title('Loss Trend')  
     axes[0].legend()
     axes[0].grid(True, linestyle='--', alpha=0.6)
+
+    axes[0].set_xlim(0, 100)  # Limiti fissi per l'asse X
+    axes[0].set_ylim(0, 10)    # Limiti fissi per l'asse Y
 
     # Secondo grafico: Perplexity
     axes[1].plot(sampled_epochs, ppl_dev_values, marker='s', linestyle='-', color='g', label='Validation PPL')
@@ -139,6 +153,11 @@ def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_val
     axes[1].set_title('Perplexity Trend')
     axes[1].legend()
     axes[1].grid(True, linestyle='--', alpha=0.6)
+
+    axes[1].set_xlim(0, 100)  # Limiti fissi per l'asse X
+    y_max = 500
+    if(max(ppl_dev_values) > 500): y_max = max(ppl_dev_values) 
+    axes[0].set_ylim(50, y_max)    # Limiti fissi per l'asse Y
 
     # Creare il percorso completo del file
     plt.tight_layout()
@@ -150,4 +169,19 @@ def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_val
 
 
 
+# Functionto save the performance of a model in the file experiments.csv
+count_experiments = 0
+filename = 'experiments.csv'
 
+def save_experiment_results(network_type, lr, hidden_size, emb_size, dropout_emb, dropout_out, optimizer, epoche, test_ppl, lest_loss_norm, ci_loss, ci_ppl):
+    # Check if the file exists  
+    file_exists = os.path.isfile(filename)
+
+    # If the file does not exist, create it and write the header
+    with open(filename, 'a') as f:
+        if not file_exists:
+            f.write('ID,Network Type,Learning Rate,Hidden Size, Embedding Size, Droput Emb,Droput Out,Optimizer, Epoche, PPL Test, Norm Loss Test, CI Norm Loss Test, CI PPL Test\n')
+        
+        global count_experiments
+        count_experiments += 1
+        f.write(f'{count_experiments},{network_type},{lr},{hidden_size},{emb_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{test_ppl},{lest_loss_norm},{ci_loss[0]}-{ci_loss[1]},{ci_ppl[0]}-{ci_ppl[1]}\n')
