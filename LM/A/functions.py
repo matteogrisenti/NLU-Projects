@@ -41,19 +41,24 @@ def train_loop(data, optimizer, criterion, model, clip=5):
 
 
 
-def eval_loop(data, eval_criterion, model):
+def eval_loop(data, eval_criterion, model, test=False):
     # data: training datatest containing samples. Each sample is a dictionary with:
     #       - "source": a sequence of IDs representing the input.
     #       - "target": a sequence of IDs representing the output.
     #       - "number_tokens": the number of tokens in the sequence.
     # eval_criterion: loss function to compute the evaluation.
     # model: the model to be evaluated.
+    # test: boolean value to indicate if the model is being tested or not.
 
     model.eval()
     loss_to_return = []
     loss_array = []
     loss_array_norm = []
     number_of_tokens = []
+    sem_loss = None
+    sem_ppl = None
+    ci_loss = None
+    ci_ppl = None
 
     # softmax = nn.Softmax(dim=1) # Use Softmax if you need the actual probability
     with torch.no_grad(): # It used to avoid the creation of computational graph
@@ -63,17 +68,27 @@ def eval_loop(data, eval_criterion, model):
 
             loss_array.append(loss.item())
             number_of_tokens.append(sample["number_tokens"])
-            loss_array_norm.append(loss.item() / sample["number_tokens"])
+            if test: loss_array_norm.append(loss.item() / sample["number_tokens"])
             
     ppl = math.exp(sum(loss_array) / sum(number_of_tokens))
     loss_to_return = sum(loss_array) / sum(number_of_tokens)
 
     # Confidence interval for the loss
-    losses = np.array(loss_array_norm)
-    ci_loss = st.t.interval(0.95, len(losses)-1, loc=np.mean(losses), scale=st.sem(losses))
-    ci_ppl = (np.exp(ci_loss[0]), np.exp(ci_loss[1]))
+    if test:
+        losses = np.array(loss_array_norm)
+        ppl_values = np.exp(losses)
 
-    return ppl, loss_to_return, ci_loss, ci_ppl
+        # SEM computation 
+        sem_loss = st.sem(losses)  
+        sem_ppl  = st.sem(ppl_values)
+        print('TEST SEM Loss:', sem_loss)
+        print('TEST SEM PPL:', sem_ppl)
+
+        #CI computation
+        ci_loss = st.t.interval(0.95, len(losses)-1, loc=np.mean(losses), scale=sem_loss)
+        ci_ppl = (np.exp(ci_loss[0]), np.exp(ci_loss[1]))
+
+    return ppl, loss_to_return, sem_loss, ci_loss, sem_ppl, ci_ppl
 
 
 
@@ -144,7 +159,7 @@ def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_val
     axes[0].grid(True, linestyle='--', alpha=0.6)
 
     axes[0].set_xlim(0, 100)  # Limiti fissi per l'asse X
-    axes[0].set_ylim(0, 10)    # Limiti fissi per l'asse Y
+    axes[0].set_ylim(1, 9)    # Limiti fissi per l'asse Y
 
     # Secondo grafico: Perplexity
     axes[1].plot(sampled_epochs, ppl_dev_values, marker='s', linestyle='-', color='g', label='Validation PPL')
@@ -155,9 +170,9 @@ def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_val
     axes[1].grid(True, linestyle='--', alpha=0.6)
 
     axes[1].set_xlim(0, 100)  # Limiti fissi per l'asse X
-    y_max = 500
+    y_max = 400
     if(max(ppl_dev_values) > 500): y_max = max(ppl_dev_values) 
-    axes[0].set_ylim(50, y_max)    # Limiti fissi per l'asse Y
+    axes[1].set_ylim(50, y_max)    # Limiti fissi per l'asse Y
 
     # Creare il percorso completo del file
     plt.tight_layout()
@@ -170,18 +185,31 @@ def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_val
 
 
 # Functionto save the performance of a model in the file experiments.csv
-count_experiments = 0
 filename = 'experiments.csv'
 
-def save_experiment_results(network_type, lr, hidden_size, emb_size, dropout_emb, dropout_out, optimizer, epoche, test_ppl, lest_loss_norm, ci_loss, ci_ppl):
-    # Check if the file exists  
-    file_exists = os.path.isfile(filename)
+def get_last_experiment_id(filename):
+    
+    with open(filename, 'r') as f:
+        if not os.path.isfile(filename):
+            f.write('ID,Network Type,Learning Rate,Hidden Size, Embedding Size, Droput Emb,Droput Out,Optimizer, Epoche, PPL Test, Norm Loss Test, SEM Loss, CI Norm Loss Test, SEM PPL, CI PPL Test\n')
+            return 0  # Nessun file → primo esperimento
+
+        lines = f.readlines()
+        if len(lines) <= 1:
+            return 0  # Solo header → nessun esperimento ancora salvato
+
+        last_line = lines[-1].strip().split(',')
+
+        try:
+            return int(last_line[0])
+        except ValueError:
+            return 0
+
+def save_experiment_results(network_type, lr, hidden_size, emb_size, dropout_emb, dropout_out, optimizer, epoche, test_ppl, lest_loss_norm, sem_loss, ci_loss, sem_ppl, ci_ppl):
+    
+    experiment_id = get_last_experiment_id(filename) + 1    # Leggi l'ultimo ID
+    file_exists = os.path.isfile(filename)                  # Check if the file exists  
 
     # If the file does not exist, create it and write the header
     with open(filename, 'a') as f:
-        if not file_exists:
-            f.write('ID,Network Type,Learning Rate,Hidden Size, Embedding Size, Droput Emb,Droput Out,Optimizer, Epoche, PPL Test, Norm Loss Test, CI Norm Loss Test, CI PPL Test\n')
-        
-        global count_experiments
-        count_experiments += 1
-        f.write(f'{count_experiments},{network_type},{lr},{hidden_size},{emb_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{test_ppl},{lest_loss_norm},{ci_loss[0]}-{ci_loss[1]},{ci_ppl[0]}-{ci_ppl[1]}\n')
+        f.write(f'{experiment_id},{network_type},{lr},{hidden_size},{emb_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(test_ppl, 2)},{round(lest_loss_norm, 2)},{round(sem_loss, 2)},{round(ci_loss[0], 2)}-{round(ci_loss[1], 2)},{round(sem_ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')

@@ -48,8 +48,9 @@ hid_size = 200  # Original 200
 emb_size = 300  # Original 300
 dropout_emb = 0.1
 dropout_out = 0.1
-lr = 1
+lr = 0.1
 clip = 5 # Clip the gradient -> avoid exploding gradients
+label = 'RNN'
 
 print("Network Configuration:")
 print("\tHidden size: ", hid_size)  
@@ -93,7 +94,7 @@ for epoch in pbar:
         last_epoch += 1 
         sampled_epochs.append(epoch)
         losses_train.append(np.asarray(loss).mean())
-        ppl_dev, loss_dev = eval_loop(dev_loader, criterion_eval, model)
+        ppl_dev, loss_dev, _, _, _, _= eval_loop(dev_loader, criterion_eval, model, test=False)
 
         losses_dev.append(np.asarray(loss_dev).mean())
         ppl_list_dev.append(ppl_dev)
@@ -114,12 +115,12 @@ for epoch in pbar:
 best_model.to(DEVICE)
 
 # Save the model
-save_model(best_model, "DROP-OUT", lr, dropout_emb=dropout_emb, dropout_out=dropout_out)
+save_model(best_model, label, lr, dropout_emb=dropout_emb, dropout_out=dropout_out)
 
 # Plot the model
-plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, filename='DROP-OUT', lr=lr, dropout_emb=dropout_emb, dropout_out=dropout_out)
+plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, filename=label, lr=lr, dropout_emb=dropout_emb, dropout_out=dropout_out)
 
-final_ppl, final_loss, ci_loss, ci_ppl = eval_loop(test_loader, criterion_eval, best_model)    
+final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl = eval_loop(test_loader, criterion_eval, best_model, test=True)    
 
 print('Test ppl: ', final_ppl)
-save_experiment_results("DROP-OUT",lr, hid_size, emb_size, dropout_emb, dropout_out, 'SGD', last_epoch, final_ppl, final_loss, ci_loss, ci_ppl)
+save_experiment_results(label ,lr, hid_size, emb_size, dropout_emb, dropout_out, 'SGD', last_epoch, final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl)

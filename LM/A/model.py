@@ -7,8 +7,7 @@ import numpy as np
 
 
 class LM_RNN(nn.Module):
-    def __init__(self, emb_size, hidden_size, output_size, pad_index=0, out_dropout=0.1,
-                 emb_dropout=0.1, n_layers=1):
+    def __init__(self, emb_size, hidden_size, output_size, pad_index=0, out_dropout=0.1, emb_dropout=0.1, n_layers=1):
         super(LM_RNN, self).__init__()
         # This Model learn: 
         # 1. The embedding layer that maps the token ids to vectors
@@ -16,14 +15,14 @@ class LM_RNN(nn.Module):
 
         # 1. Token ids emdedding to vectors
         self.embedding = nn.Embedding(output_size, emb_size, padding_idx=pad_index)
-        self.emb_dropout = nn.Dropout(emb_dropout)  # Dropout after embedding
+        # self.emb_dropout = nn.Dropout(emb_dropout)  # Dropout after embedding
         
         # 2. Pytorch's RNN layer: https://pytorch.org/docs/stable/generated/torch.nn.RNN.html
-        # self.rnn = nn.RNN(emb_size, hidden_size, n_layers, bidirectional=False, batch_first=True)   
-        self.rnn = nn.LSTM(emb_size, hidden_size, n_layers, bidirectional=False, batch_first=True) 
+        self.rnn = nn.RNN(emb_size, hidden_size, n_layers, bidirectional=False, batch_first=True)   
+        # self.rnn = nn.LSTM(emb_size, hidden_size, n_layers, bidirectional=False, batch_first=True) 
         
         # Dropout before the final linear layer
-        self.out_dropout = nn.Dropout(out_dropout)
+        # self.out_dropout = nn.Dropout(out_dropout)
 
         self.pad_token = pad_index
         # Linear layer to project the hidden layer to our output space 
@@ -31,10 +30,10 @@ class LM_RNN(nn.Module):
         
     def forward(self, input_sequence):
         emb = self.embedding(input_sequence)
-        emb = self.emb_dropout(emb)  # Apply dropout after embedding
+        # emb = self.emb_dropout(emb)  # Apply dropout after embedding
 
         rnn_out, _  = self.rnn(emb)
-        rnn_out = self.out_dropout(rnn_out)  # Apply dropout before output layer
+        # rnn_out = self.out_dropout(rnn_out)  # Apply dropout before output layer
 
         output = self.output(rnn_out).permute(0,2,1)
         return output 
