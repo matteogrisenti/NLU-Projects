@@ -46,11 +46,11 @@ test_loader  = DataLoader(test_dataset,  batch_size=128, collate_fn=partial(coll
 # Model configuration 
 hid_size = 200  # Original 200
 emb_size = 300  # Original 300
-dropout_emb = 0.1
-dropout_out = 0.1
-lr = 0.1
+dropout_emb = 0.2
+dropout_out = 0.2
+lr = 1
 clip = 5 # Clip the gradient -> avoid exploding gradients
-label = 'RNN'
+label = 'DROPOUT'
 
 print("Network Configuration:")
 print("\tHidden size: ", hid_size)  
