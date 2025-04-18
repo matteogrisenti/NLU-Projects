@@ -24,7 +24,8 @@ def plot_ppl_with_sem_ci(csv_path, row_ids, save_path="ErrorBars.png"):
     fig, ax = plt.subplots(figsize=(10, 6))
     # RNN = skyblue
     # LSTM = orange
-    ax.bar(x, ci_means, bar_width, yerr=ci_errors, capsize=5, color='skyblue')
+    PPL_COLOR = 'skyblue'
+    ax.bar(x, ci_means, bar_width, yerr=ci_errors, capsize=5, color=PPL_COLOR)
 
     for i, (x_pos, ci_mean, sem) in enumerate(zip(x, ci_means, sem_values)):
         ax.bar(x_pos, 2 * sem, sem_bar_width, bottom=ci_mean - sem, color='red')
@@ -37,7 +38,7 @@ def plot_ppl_with_sem_ci(csv_path, row_ids, save_path="ErrorBars.png"):
 
     # Aggiunta legenda manuale
     custom_legend = [
-        Line2D([0], [0], color='orange', lw=10, label='PPL'),
+        Line2D([0], [0], color=PPL_COLOR, lw=10, label='PPL'),
         Line2D([0], [0], color='black', lw=2, label='CI'),
         Line2D([0], [0], color='red', lw=6, label='SEM')
     ]
