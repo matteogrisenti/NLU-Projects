@@ -24,7 +24,7 @@ def plot_ppl_with_sem_ci(csv_path, row_ids, save_path="ErrorBars.png"):
     fig, ax = plt.subplots(figsize=(10, 6))
     # RNN = skyblue
     # LSTM = orange
-    ax.bar(x, ci_means, bar_width, yerr=ci_errors, capsize=5, color='orange')
+    ax.bar(x, ci_means, bar_width, yerr=ci_errors, capsize=5, color='skyblue')
 
     for i, (x_pos, ci_mean, sem) in enumerate(zip(x, ci_means, sem_values)):
         ax.bar(x_pos, 2 * sem, sem_bar_width, bottom=ci_mean - sem, color='red')
@@ -48,5 +48,5 @@ def plot_ppl_with_sem_ci(csv_path, row_ids, save_path="ErrorBars.png"):
 
 # Esempio d'uso:
 filename = 'experiments.csv'
-plot_ppl_with_sem_ci(filename, [4,5,6])
+plot_ppl_with_sem_ci(filename, [2,1,3])
 

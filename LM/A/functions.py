@@ -235,7 +235,8 @@ def init_weights(mat):
 # ------------------------------------------------------------------------------
 def path_define(LABEL, LR, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER):
     path = f"{LABEL}_lr-{str(LR).replace('.', ',')}_hid-{HID_SIZE}_emb-{EMB_SIZE}"
-    path += f"_dropEmb-{str(DROPOUT_EMB).replace('.', ',')}_dropOut-{str(DROPOUT_OUT).replace('.', ',')}"
+    if DROPOUT_EMB is not None and DROPOUT_OUT is not None:
+        path += f"_dropEmb-{str(DROPOUT_EMB).replace('.', ',')}_dropOut-{str(DROPOUT_OUT).replace('.', ',')}"
     path += f"_{OPTIMIZER}"
     return path
 

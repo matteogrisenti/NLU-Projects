@@ -23,13 +23,13 @@ print("Using device: ", DEVICE)
 
 
 # --------------------------------------------  HYPERPARAMETERS ------------------------------------------------
-LABEL = 'DROPOUT'
+LABEL = 'RNN'
 BATCH_SIZE = 64     # Original 64
 HID_SIZE = 200      # Original 200
 EMB_SIZE = 300      # Original 300
-DROPOUT_EMB = 0.2
-DROPOUT_OUT = 0.2
-LR = 1
+DROPOUT_EMB = None
+DROPOUT_OUT = None
+LR = 5
 OPTIMIZER = 'SGD'   # SGD or Adam
 CLIP = 5            # Clip the gradient -> avoid exploding gradients
 
@@ -111,7 +111,7 @@ for epoch in pbar:
         last_epoch += 1 
         sampled_epochs.append(epoch)
         losses_train.append(np.asarray(loss).mean())
-        ppl_dev, loss_dev = eval_loop(dev_loader, criterion_eval, model, test=False)
+        ppl_dev, loss_dev = eval_loop(dev_loader, criterion_eval, model)
 
         losses_dev.append(np.asarray(loss_dev).mean())
         ppl_list_dev.append(ppl_dev)
@@ -138,13 +138,13 @@ best_model.to(DEVICE)
 path = path_define(LABEL, LR, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER)
 
 # Save the model
-save_model(best_model, LABEL, LR, dropout_emb=DROPOUT_EMB, dropout_out=DROPOUT_OUT)
+save_model(best_model, path)
 
 # Plot the model
-plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, filename=LABEL, lr=LR, dropout_emb=DROPOUT_EMB, dropout_out=DROPOUT_OUT)
+plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, path) 
 
 # Evaluate the model on the test set
-final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl = test_eval_loop(test_loader, criterion_eval, best_model, test=True)    
+final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl = test_eval_loop(test_loader, criterion_eval, best_model)    
 print('Test ppl: ', final_ppl)
 
 # Save the results in a CSV file
