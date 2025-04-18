@@ -1,10 +1,20 @@
 import math
-import torch
-import torch.nn as nn
-import matplotlib.pyplot as plt
-import numpy as np
+import copy
 import os
+import torch
+
+import numpy as np
+import torch.nn as nn
 import scipy.stats as st
+import matplotlib.pyplot as plt
+
+from tqdm import tqdm
+from torch import optim
+from functools import partial
+from torch.utils.data import DataLoader
+
+from utils import collate_fn
+from model import LM_RNN
 
 # ------------------------------------------------------------------------------
 # Function: train_loop
@@ -397,3 +407,140 @@ def save_experiment_results(network_type, lr, hidden_size, emb_size, dropout_emb
     # If the file does not exist, create it and write the header
     with open(filename, 'a') as f:
         f.write(f'{experiment_id},{network_type},{lr},{hidden_size},{emb_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(test_ppl, 2)},{round(lest_loss_norm, 2)},{round(sem_loss, 2)},{round(ci_loss[0], 2)}-{round(ci_loss[1], 2)},{round(sem_ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
+
+
+
+
+# ------------------------------------------------------------------------------
+# Function: train_model
+#
+# Description:
+#     Trains a language model (LM) using the Penn Treebank dataset with
+#     specified hyperparameters. Handles full pipeline from data preprocessing,
+#     model initialization, training loop with early stopping, and evaluation.
+#     Also manages logging, saving the best-performing model, and visualizing
+#     training metrics such as loss and perplexity.
+#
+# Parameters:
+#     train_dataset (Dataset): Training dataset containing tokenized sentences.
+#     dev_dataset (Dataset): Validation dataset containing tokenized sentences.
+#     test_dataset (Dataset): Test dataset for final evaluation of the model.
+#     lang (Lang): Language object containing vocabulary mapping (word2id, id2word).
+#     BATCH_SIZE (int): Number of samples per training batch.
+#     HID_SIZE (int): Size of the RNN hidden layers.
+#     EMB_SIZE (int): Dimensionality of word embeddings.
+#     LR (float): Learning rate used by the optimizer.
+#     DROPOUT_EMB (float): Dropout probability for the embedding layer.
+#     DROPOUT_OUT (float): Dropout probability for the output layer.
+#     CLIP (float): Gradient clipping threshold to stabilize training.
+#     OPTIMIZER (str): Choice of optimizer, either 'SGD' or 'Adam'.
+#     DEVICE (torch.device): Device on which to perform training (CPU or GPU).
+#     LABEL (str, optional): Identifier for the experiment run. Default is "exp".
+#
+# Behavior:
+#     - Loads and tokenizes the Penn Treebank dataset.
+#     - Constructs dataloaders for training, validation, and testing.
+#     - Initializes and trains a language model with early stopping.
+#     - Saves the best model and logs its performance.
+#     - Plots training curves for loss and perplexity over epochs.
+#     - Evaluates final model on test data and records performance metrics.
+#
+# Output:
+#     - Saves the best model to disk.
+#     - Outputs training progress to console.
+#     - Saves training visualization plots.
+#     - Logs final test evaluation metrics via `save_experiment_results`.
+# ------------------------------------------------------------------------------
+def train_model(
+    train_dataset, 
+    dev_dataset,
+    test_dataset,
+    lang,
+    BATCH_SIZE,
+    HID_SIZE,
+    EMB_SIZE,
+    LR,
+    DROPOUT_EMB,
+    DROPOUT_OUT,
+    CLIP,
+    OPTIMIZER,
+    DEVICE,
+    LABEL="exp"
+):
+    print("HYPERPARAMETERS:")
+    print("\tBatch size: ", BATCH_SIZE)
+    print("\tHidden size: ", HID_SIZE)  
+    print("\tEmbedding size: ", EMB_SIZE)
+    print("\tLearning rate: ", LR)
+    print("\tDropout embedding: ", DROPOUT_EMB)
+    print("\tDropout output: ", DROPOUT_OUT)
+    print("\tGradient clipping: ", CLIP)
+
+    # --------------------------------------------- DATASET MANAGEMENT ----------------------------------------------
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE,  collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE),  shuffle=True)
+    dev_loader   = DataLoader(dev_dataset,   batch_size=BATCH_SIZE*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE))
+    test_loader  = DataLoader(test_dataset,  batch_size=BATCH_SIZE*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE))
+
+    print("\tNumber of batches in train_loader:", len(train_loader))
+    print("\tNumber of batches in dev_loader:", len(dev_loader))
+    print("\tNumber of batches in test_loader:", len(test_loader))
+
+    # --------------------------------------------- MODEL MANAGEMENT ----------------------------------------------
+    vocab_len = len(lang.word2id)
+    model = LM_RNN(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"], out_dropout=DROPOUT_OUT, emb_dropout=DROPOUT_EMB).to(DEVICE)
+    model.apply(init_weights)
+
+    if OPTIMIZER == 'SGD':
+        optimizer = optim.SGD(model.parameters(), lr=LR)
+    elif OPTIMIZER == 'Adam':
+        optimizer = optim.Adam(model.parameters(), lr=LR)
+
+    criterion_train = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"])
+    criterion_eval = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"], reduction='sum')
+
+    n_epochs = 100
+    last_epoch = 0
+    patience = 3
+    losses_train = []
+    losses_dev = []
+    ppl_list_dev = []
+    sampled_epochs = []
+    best_ppl = math.inf
+    best_model = None
+    pbar = tqdm(range(1,n_epochs))
+
+    for epoch in pbar:
+        loss = train_loop(train_loader, optimizer, criterion_train, model, CLIP)    
+        if epoch % 1 == 0:
+            last_epoch += 1 
+            sampled_epochs.append(epoch)
+            losses_train.append(np.asarray(loss).mean())
+            ppl_dev, loss_dev = eval_loop(dev_loader, criterion_eval, model)
+
+            losses_dev.append(np.asarray(loss_dev).mean())
+            ppl_list_dev.append(ppl_dev)
+
+            pbar.set_description("PPL: %f" % ppl_dev)
+
+            if  ppl_dev < best_ppl:
+                best_ppl = ppl_dev
+                best_model = copy.deepcopy(model).to('cpu')
+                patience = 3
+            else:
+                patience -= 1
+                
+            if patience <= 0:
+                print(" Early stopping at epoch ", last_epoch, " \n\tBest PPL: ", best_ppl, "\n\tLast PPL:", ppl_list_dev[-3:])
+                break
+
+    best_model.to(DEVICE)
+
+    # --------------------------------------------- POST TRAINING -----------------------------------------
+    path = path_define(LABEL, LR, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER)
+    save_model(best_model, path)
+    plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, path)
+
+    final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl = test_eval_loop(test_loader, criterion_eval, best_model)    
+    print('Test ppl: ', final_ppl)
+
+    save_experiment_results(LABEL ,LR, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER, last_epoch, final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl)
