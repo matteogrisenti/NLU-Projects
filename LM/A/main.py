@@ -27,8 +27,8 @@ print("\tTest dataset size: ", len(test_dataset))
 
 
 # --------------------------------------------  HYPERPARAMETERS ------------------------------------------------
-LABEL = 'RNN'
-BATCH_SIZE = 64     # Original 64
+LABEL = 'LSTM'      # RNN, LSTM
+BATCH_SIZE = 128     # Original 64
 HID_SIZE = 200      # Original 200
 EMB_SIZE = 300      # Original 300
 DROPOUT_EMB = None

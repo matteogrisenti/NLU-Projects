@@ -14,7 +14,7 @@ from functools import partial
 from torch.utils.data import DataLoader
 
 from utils import collate_fn
-from model import LM_RNN
+from model import LM_RNN, LM_LSTM
 
 # ------------------------------------------------------------------------------
 # Function: train_loop
@@ -243,8 +243,8 @@ def init_weights(mat):
 #     path (str): A formatted string with all the hyperparameters embedded,
 #                 suitable for use in filenames or directory paths.
 # ------------------------------------------------------------------------------
-def path_define(LABEL, LR, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER):
-    path = f"{LABEL}_lr-{str(LR).replace('.', ',')}_hid-{HID_SIZE}_emb-{EMB_SIZE}"
+def path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER):
+    path = f"{LABEL}_lr-{str(LR).replace('.', ',')}_hid-{HID_SIZE}_emb-{EMB_SIZE}_batch-{BATCH_SIZE}"
     if DROPOUT_EMB is not None and DROPOUT_OUT is not None:
         path += f"_dropEmb-{str(DROPOUT_EMB).replace('.', ',')}_dropOut-{str(DROPOUT_OUT).replace('.', ',')}"
     path += f"_{OPTIMIZER}"
@@ -296,31 +296,37 @@ def save_model(model, path):
 def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_values, path='PLOT'):
     
     fig, axes = plt.subplots(2, 1, figsize=(8, 10))
-    
+    font_size = 14  # Font size per labels, titoli, e legende
+
     # Primo grafico: Loss Function
     axes[0].plot(sampled_epochs, losses_train, linestyle='-', color='b', label='Training Loss')
     axes[0].plot(sampled_epochs, losses_dev, linestyle='-', color='r', label='Validation Loss')
-    axes[0].set_xlabel('Epoche')  
-    axes[0].set_ylabel('Loss')   
-    axes[0].set_title('Loss Trend')  
-    axes[0].legend()
+    axes[0].set_xlabel('Epoche', fontsize=font_size)
+    axes[0].set_ylabel('Loss', fontsize=font_size)
+    axes[0].set_title('Loss Trend', fontsize=font_size + 2)
+    axes[0].legend(fontsize=font_size)
     axes[0].grid(True, linestyle='--', alpha=0.6)
+    axes[0].tick_params(axis='both', labelsize=font_size)
 
-    axes[0].set_xlim(0, 100)  # Limiti fissi per l'asse X
-    axes[0].set_ylim(1, 9)    # Limiti fissi per l'asse Y
+    axes[0].set_xlim(0, 100)
+    axes[0].set_ylim(1, 9)
 
     # Secondo grafico: Perplexity
     axes[1].plot(sampled_epochs, ppl_dev_values, marker='s', linestyle='-', color='g', label='Validation PPL')
-    axes[1].set_xlabel('Epoche')
-    axes[1].set_ylabel('Perplexity (PPL)')
-    axes[1].set_title('Perplexity Trend')
-    axes[1].legend()
+    axes[1].set_xlabel('Epoche', fontsize=font_size)
+    axes[1].set_ylabel('Perplexity (PPL)', fontsize=font_size)
+    axes[1].set_title('Perplexity Trend', fontsize=font_size + 2)
+    axes[1].legend(fontsize=font_size)
     axes[1].grid(True, linestyle='--', alpha=0.6)
+    axes[1].tick_params(axis='both', labelsize=font_size)
 
-    axes[1].set_xlim(0, 100)  # Limiti fissi per l'asse X
+    axes[1].set_xlim(0, 100)
     y_max = 400
-    if(max(ppl_dev_values) > 500): y_max = max(ppl_dev_values) 
-    axes[1].set_ylim(50, y_max)    # Limiti fissi per l'asse Y
+    if max(ppl_dev_values) > 500:
+        y_max = max(ppl_dev_values)
+    axes[1].set_ylim(50, y_max)
+
+    fig.subplots_adjust(hspace=0.4)
 
     filepath = os.path.join('plots', path + '.png')
     plt.savefig(filepath, dpi=300)
@@ -396,7 +402,7 @@ def get_last_experiment_id(filename):
 # Output:
 #     A new line is added to 'experiments.csv' recording the current experiment.
 # ------------------------------------------------------------------------------
-def save_experiment_results(network_type, lr, hidden_size, emb_size, dropout_emb, dropout_out, 
+def save_experiment_results(network_type, lr, batch_size, hidden_size, emb_size, dropout_emb, dropout_out, 
                             optimizer, epoche, test_ppl, lest_loss_norm, sem_loss, ci_loss, 
                             sem_ppl, ci_ppl):
     filename = 'experiments.csv'
@@ -406,7 +412,7 @@ def save_experiment_results(network_type, lr, hidden_size, emb_size, dropout_emb
 
     # If the file does not exist, create it and write the header
     with open(filename, 'a') as f:
-        f.write(f'{experiment_id},{network_type},{lr},{hidden_size},{emb_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(test_ppl, 2)},{round(lest_loss_norm, 2)},{round(sem_loss, 2)},{round(ci_loss[0], 2)}-{round(ci_loss[1], 2)},{round(sem_ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
+        f.write(f'{experiment_id},{network_type},{lr},{batch_size},{hidden_size},{emb_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(test_ppl, 2)},{round(lest_loss_norm, 2)},{round(sem_loss, 2)},{round(ci_loss[0], 2)}-{round(ci_loss[1], 2)},{round(sem_ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
 
 
 
@@ -487,7 +493,8 @@ def train_model(
 
     # --------------------------------------------- MODEL MANAGEMENT ----------------------------------------------
     vocab_len = len(lang.word2id)
-    model = LM_RNN(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"], out_dropout=DROPOUT_OUT, emb_dropout=DROPOUT_EMB).to(DEVICE)
+    # model = LM_RNN(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"], out_dropout=DROPOUT_OUT, emb_dropout=DROPOUT_EMB).to(DEVICE)
+    model = LM_LSTM(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"], out_dropout=DROPOUT_OUT, emb_dropout=DROPOUT_EMB).to(DEVICE)
     model.apply(init_weights)
 
     if OPTIMIZER == 'SGD':
@@ -536,11 +543,11 @@ def train_model(
     best_model.to(DEVICE)
 
     # --------------------------------------------- POST TRAINING -----------------------------------------
-    path = path_define(LABEL, LR, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER)
+    path = path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER)
     save_model(best_model, path)
     plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, path)
 
     final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl = test_eval_loop(test_loader, criterion_eval, best_model)    
     print('Test ppl: ', final_ppl)
 
-    save_experiment_results(LABEL ,LR, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER, last_epoch, final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl)
+    save_experiment_results(LABEL ,LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER, last_epoch, final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl)

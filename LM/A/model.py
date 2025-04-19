@@ -37,7 +37,7 @@ class LM_RNN(nn.Module):
 
 class LM_LSTM(nn.Module):
     def __init__(self, emb_size, hidden_size, output_size, pad_index=0, out_dropout=0.1, emb_dropout=0.1, n_layers=1):
-        super(LM_RNN, self).__init__()
+        super(LM_LSTM, self).__init__()
 
         # 1. Token ids emdedding to vectors
         self.embedding = nn.Embedding(output_size, emb_size, padding_idx=pad_index)
