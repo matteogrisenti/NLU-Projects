@@ -138,7 +138,7 @@ def eval_loop(data, eval_criterion, model):
 #     sem_ppl (float or None): Standard Error of the Mean for the perplexity.
 #     ci_ppl (tuple or None): 95% Confidence Interval for the perplexity.
 # ------------------------------------------------------------------------------
-def test_eval_loop(data, eval_criterion, model, test=False):
+def test_eval_loop(data, eval_criterion, model):
     
     model.eval()
     loss_to_return = []
