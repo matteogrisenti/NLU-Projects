@@ -159,8 +159,106 @@ def plot_ppl_heatmap(csv_path, selected_ids, save_path="Heatmap.png"):
 
 
 
+# ------------------------------------------------------------------------------
+# Function: plot_ppl_by_batchsize_with_ci
+#
+# Description:
+#     Creates a scatter plot with error bars to visualize PPL (Perplexity) scores 
+#     across different combinations of Batch Size and Learning Rate. For each 
+#     batch size, three models with distinct learning rates (0.5, 1, 2) are 
+#     displayed side-by-side. Each point shows the mean of the 95% Confidence 
+#     Interval (CI), with CI shown as vertical error bars and SEM (Standard Error 
+#     of the Mean) indicated as smaller red ticks.
+#
+# Parameters:
+#     csv_path (str): Path to the CSV file containing experiment results.
+#     selected_ids (list[int]): List of row IDs (experiment IDs) to include in the plot.
+#     save_path (str): Path where the generated plot image will be saved.
+#
+# Behavior:
+#     - Loads experiment data from the CSV file.
+#     - Filters rows based on the provided experiment IDs.
+#     - Parses and extracts PPL mean values, SEM, and CI from the dataset.
+#     - Groups data by Batch Size and Learning Rate.
+#     - For each group, plots the PPL mean as a point with CI error bars and SEM ticks.
+#     - Learning rate points are horizontally offset for visual separation within each batch size.
+#     - A custom legend distinguishes learning rates, CI bars, and SEM ticks.
+#
+# Output:
+#     Saves the resulting scatter plot with CI and SEM indications to the specified file path.
+# ------------------------------------------------------------------------------
+def plot_ppl_by_batchsize_with_ci(csv_path, selected_ids, save_path="PPL_vs_BatchSize.png"):
+    # Carica e filtra dati
+    df = pd.read_csv(csv_path)
+    df_filtered = df[df['ID'].isin(selected_ids)].copy()
+
+    # Converti i tipi
+    df_filtered['Learning Rate'] = df_filtered['Learning Rate'].astype(float)
+    df_filtered['Batch Size'] = df_filtered['Batch Size'].astype(int)
+    df_filtered['SEM PPL'] = df_filtered['SEM PPL'].astype(float)
+
+    # Parsing CI
+    ci_split = df_filtered['CI PPL Test'].str.split('-', expand=True)
+    ci_split.columns = ['ci_lower', 'ci_upper']
+    ci_split = ci_split.astype(float)
+    df_filtered['ci_mean'] = (ci_split['ci_lower'] + ci_split['ci_upper']) / 2
+    df_filtered['ci_error'] = (ci_split['ci_upper'] - ci_split['ci_lower']) / 2
+
+    # Batch sizes e learning rates da usare
+    batch_sizes = [16, 32, 64, 128]
+    learning_rates = [0.5, 1, 2]
+    lr_colors = {0.5: 'blue', 1: 'green', 2: 'orange'}
+
+    # Posizioni discrete asse x
+    x_base_positions = np.arange(len(batch_sizes))  # es. [0, 1, 2, 3]
+    offset_width = 0.2  # spazio tra i punti nel gruppo
+    lr_offsets = {0.5: -offset_width, 1: 0, 2: offset_width}
+
+    # Plot setup
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot per ciascun punto
+    for lr in learning_rates:
+        df_lr = df_filtered[df_filtered['Learning Rate'] == lr]
+        for i, bs in enumerate(batch_sizes):
+            row = df_lr[df_lr['Batch Size'] == bs]
+            if row.empty:
+                continue
+            row = row.iloc[0]
+            x = x_base_positions[i] + lr_offsets[lr]
+            y = row['ci_mean']
+            ci = row['ci_error']
+            sem = row['SEM PPL']
+
+            # Punto + CI
+            ax.errorbar(x, y, yerr=ci, fmt='o', color=lr_colors[lr], capsize=8, markersize=10, elinewidth=4)
+
+            # SEM come tick rosso
+            ax.errorbar(x, y, yerr=sem, fmt='_', color='red', capsize=8, elinewidth=4)
+
+    # Asse x discreto
+    ax.set_xticks(x_base_positions)
+    ax.set_xticklabels([str(bs) for bs in batch_sizes], fontsize=14)
+    ax.set_xlabel("Batch Size", fontsize=16)
+    ax.set_ylabel("PPL", fontsize=16)
+    ax.tick_params(axis='y', labelsize=14)
+
+    # Legenda custom
+    custom_legend = [
+        Line2D([0], [0], marker='o', color='w', markerfacecolor=lr_colors[0.5], label='lr=0.5', markersize=10),
+        Line2D([0], [0], marker='o', color='w', markerfacecolor=lr_colors[1], label='lr=1', markersize=10),
+        Line2D([0], [0], marker='o', color='w', markerfacecolor=lr_colors[2], label='lr=2', markersize=10),
+        Line2D([0], [0], color='black', lw=2, label='95% CI'),
+        Line2D([0], [0], color='red', lw=2, label='SEM')
+    ]
+    ax.legend(handles=custom_legend, fontsize=14, ncol=2, loc='upper left')
+
+    plt.tight_layout()
+    plt.savefig(save_path)
+
+
 
 # -----------------------------------------  MAIN --------------------------------------------------
 filename = 'experiments.csv'
-plot_ppl_heatmap(filename, [4,5,6,7,8,9,10,11,12,13,14,15], 'HeatmapLSTM.png')
+plot_ppl_by_batchsize_with_ci(filename, [4,5,6,7,8,9,10,11,12,13,14,15], 'CIPlotLSTM.png')
 
