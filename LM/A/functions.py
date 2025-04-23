@@ -331,6 +331,40 @@ def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_val
     filepath = os.path.join('plots', path + '.png')
     plt.savefig(filepath, dpi=300)
 
+def plot_training_progress_wnl(sampled_epochs, losses_train, losses_dev, ppl_dev_values, path='PLOT'):
+    
+    fig, axes = plt.subplots(2, 1, figsize=(8, 10))
+    font_size = 14  # Font size per labels, titoli, e legende
+
+    # Primo grafico: Loss Function
+    axes[0].plot(sampled_epochs, losses_train, linestyle='-', color='b', label='Training Loss')
+    axes[0].plot(sampled_epochs, losses_dev, linestyle='-', color='r', label='Validation Loss')
+    axes[0].set_xlabel('Epoche', fontsize=font_size)
+    axes[0].set_ylabel('Loss', fontsize=font_size)
+    axes[0].set_title('Loss Trend', fontsize=font_size + 2)
+    axes[0].legend(fontsize=font_size)
+    axes[0].grid(True, linestyle='--', alpha=0.6)
+    axes[0].tick_params(axis='both', labelsize=font_size)
+
+    # Secondo grafico: Perplexity
+    axes[1].plot(sampled_epochs, ppl_dev_values, marker='s', linestyle='-', color='g', label='Validation PPL')
+    axes[1].set_xlabel('Epoche', fontsize=font_size)
+    axes[1].set_ylabel('Perplexity (PPL)', fontsize=font_size)
+    axes[1].set_title('Perplexity Trend', fontsize=font_size + 2)
+    axes[1].legend(fontsize=font_size)
+    axes[1].grid(True, linestyle='--', alpha=0.6)
+    axes[1].tick_params(axis='both', labelsize=font_size)
+
+    axes[1].set_xlim(0, 100)
+    if max(ppl_dev_values) < 400:
+        y_max = max(400)
+        axes[1].set_ylim(50, y_max)
+
+    fig.subplots_adjust(hspace=0.4)
+
+    filepath = os.path.join('plots', path + '.png')
+    plt.savefig(filepath, dpi=300)
+
 
 
 # ------------------------------------------------------------------------------
@@ -480,6 +514,7 @@ def train_model(
     print("\tLearning rate: ", LR)
     print("\tDropout embedding: ", DROPOUT_EMB)
     print("\tDropout output: ", DROPOUT_OUT)
+    print("\tOptimizer: ", OPTIMIZER)
     print("\tGradient clipping: ", CLIP)
 
     # --------------------------------------------- DATASET MANAGEMENT ----------------------------------------------
@@ -500,8 +535,8 @@ def train_model(
 
     if OPTIMIZER == 'SGD':
         optimizer = optim.SGD(model.parameters(), lr=LR)
-    elif OPTIMIZER == 'Adam':
-        optimizer = optim.Adam(model.parameters(), lr=LR)
+    elif OPTIMIZER == 'AdamW':
+        optimizer = optim.AdamW(model.parameters(), lr=LR)
 
     criterion_train = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"])
     criterion_eval = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"], reduction='sum')
@@ -546,7 +581,12 @@ def train_model(
     # --------------------------------------------- POST TRAINING -----------------------------------------
     path = path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER)
     save_model(best_model, path)
-    plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, path)
+
+    try: 
+        plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, path)
+        #plot_training_progress_wnl(sampled_epochs, losses_train, losses_dev, ppl_list_dev, path)
+    except Exception as e:
+        print(f"An error occurred while plotting: {e}")
 
     final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl = test_eval_loop(test_loader, criterion_eval, best_model)    
     print('Test ppl: ', final_ppl)
