@@ -395,7 +395,8 @@ def save_experiment_results(network_type, lr, layers, batch_size, hidden_size, e
 
     experiment_id = get_last_experiment_id(filename) + 1    # Leggi l'ultimo ID
     file_exists = os.path.isfile(filename)                  # Check if the file exists  
-
+    
+    # print("File exists: ", file_exists)
     # If the file does not exist, create it and write the header
     with open(filename, 'a') as f:
         f.write(f'{experiment_id},{network_type},{lr},{layers},{batch_size},{hidden_size},{emb_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(test_ppl, 2)},{round(lest_loss_norm, 2)},{round(sem_loss, 2)},{round(ci_loss[0], 2)}-{round(ci_loss[1], 2)},{round(sem_ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
