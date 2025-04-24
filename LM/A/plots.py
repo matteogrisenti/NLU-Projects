@@ -72,6 +72,64 @@ def plot_ppl_with_sem_ci(csv_path, row_ids, save_path="ErrorBars.png"):
     plt.tight_layout()
     plt.savefig(save_path)
 
+def plot_ppl_with_sem_ci_AdamW(csv_path, row_ids, save_path="ErrorBars.png"):
+    df = pd.read_csv(csv_path)
+    df_filtered = df[df['ID'].isin(row_ids)].copy()
+
+    # Estrazione dei valori
+    ids = df_filtered['ID'].tolist()
+    sem_values = df_filtered['SEM PPL'].astype(float).tolist()
+    dim_pairs = list(zip(df_filtered['Hidden Size'], df_filtered['Embedding Size']))
+
+    # Parsing intervallo di confidenza (CI)
+    ci_split = df_filtered['CI PPL Test'].str.split('-', expand=True)
+    ci_split.columns = ['ci_lower', 'ci_upper']
+    ci_split = ci_split.astype(float)
+
+    # Calcolo media CI e margini
+    ci_means = ((ci_split['ci_lower'] + ci_split['ci_upper']) / 2).tolist()
+    ci_errors = ((ci_split['ci_upper'] - ci_split['ci_lower']) / 2).tolist()
+
+    # Posizioni nel plot
+    x = np.arange(len(ids))
+    bar_width = 0.75
+    sem_bar_width = 0.1
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    # Mappa dimensioni -> colori
+    def get_color(dim_pair):
+        return 'green' if dim_pair == (400, 600) else 'orange'
+
+    # Barre con CI
+    for i, (x_pos, ci_mean, ci_err, dim_pair) in enumerate(zip(x, ci_means, ci_errors, dim_pairs)):
+        color = get_color(dim_pair)
+        ax.bar(x_pos, ci_mean, bar_width, yerr=ci_err, capsize=5, color=color)
+
+    # Barre SEM
+    for i, (x_pos, ci_mean, sem) in enumerate(zip(x, ci_means, sem_values)):
+        ax.bar(x_pos, 2 * sem, sem_bar_width, bottom=ci_mean - sem, color='red')
+
+    # Asse e etichette
+    ax.set_xlabel('Dropout', fontsize=16)
+    ax.set_ylabel('PPL', fontsize=16)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f'dr={d}' for d in df_filtered['Droput Emb']], fontsize=14)
+    ax.tick_params(axis='y', labelsize=14)
+    ax.set_ylim(50,120)
+
+    # Legenda personalizzata
+    custom_legend = [
+        Line2D([0], [0], color='green', lw=10, label='400-600'),
+        Line2D([0], [0], color='orange', lw=10, label='600-900'),
+        Line2D([0], [0], color='black', lw=2, label='CI'),
+        Line2D([0], [0], color='red', lw=6, label='SEM')
+    ]
+    ax.legend(handles=custom_legend, fontsize=12)
+
+    plt.tight_layout()
+    plt.savefig(save_path)
+
 
 
 # ------------------------------------------------------------------------------
@@ -323,5 +381,5 @@ def plot_ppl_by_batchsize_with_ci(csv_path, selected_ids, save_path="PPL_vs_Batc
 
 # -----------------------------------------  MAIN --------------------------------------------------
 filename = 'experiments.csv'
-plot_ppl_with_sem_ci_with_reference(filename, [16,17,18], 9, save_path="Dropout.png")
+plot_ppl_with_sem_ci_AdamW(filename, [26,27,28,29,30,31], save_path="AdamWDIM.png")
 
