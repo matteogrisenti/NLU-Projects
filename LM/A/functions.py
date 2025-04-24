@@ -235,6 +235,8 @@ def init_weights(mat):
 #     LR (float): Learning rate used in training.
 #     HID_SIZE (int): Size of the hidden layers in the model.
 #     EMB_SIZE (int): Size of the embedding vectors.
+#     BATCH_SIZE (int): Size of the training batches.
+#     N_LAYERS (int): Number of layers in the model.
 #     DROPOUT_EMB (float): Dropout rate applied to the embedding layer.
 #     DROPOUT_OUT (float): Dropout rate applied to the output layer.
 #     OPTIMIZER (str): Optimizer used for training (e.g., 'Adam', 'SGD').
@@ -243,8 +245,8 @@ def init_weights(mat):
 #     path (str): A formatted string with all the hyperparameters embedded,
 #                 suitable for use in filenames or directory paths.
 # ------------------------------------------------------------------------------
-def path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER):
-    path = f"{LABEL}_lr-{str(LR).replace('.', ',')}_hid-{HID_SIZE}_emb-{EMB_SIZE}_batch-{BATCH_SIZE}"
+def path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, N_LAYERS, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER):
+    path = f"{LABEL}_lr-{str(LR).replace('.', ',')}_hid-{HID_SIZE}_emb-{EMB_SIZE}_batch-{BATCH_SIZE}_layers-{N_LAYERS}"
     if DROPOUT_EMB is not None and DROPOUT_OUT is not None:
         path += f"_dropEmb-{str(DROPOUT_EMB).replace('.', ',')}_dropOut-{str(DROPOUT_OUT).replace('.', ',')}"
     path += f"_{OPTIMIZER}"
@@ -499,6 +501,7 @@ def train_model(
     BATCH_SIZE,
     HID_SIZE,
     EMB_SIZE,
+    N_LAYERS,
     LR,
     DROPOUT_EMB,
     DROPOUT_OUT,
@@ -511,6 +514,7 @@ def train_model(
     print("\tBatch size: ", BATCH_SIZE)
     print("\tHidden size: ", HID_SIZE)  
     print("\tEmbedding size: ", EMB_SIZE)
+    print("\tNumber of layers: ", N_LAYERS)
     print("\tLearning rate: ", LR)
     print("\tDropout embedding: ", DROPOUT_EMB)
     print("\tDropout output: ", DROPOUT_OUT)
@@ -530,7 +534,7 @@ def train_model(
     vocab_len = len(lang.word2id)
     # model = LM_RNN(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"], out_dropout=DROPOUT_OUT, emb_dropout=DROPOUT_EMB).to(DEVICE)
     # model = LM_LSTM(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"], out_dropout=DROPOUT_OUT, emb_dropout=DROPOUT_EMB).to(DEVICE)
-    model = LM_LSTM_DO(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"], out_dropout=DROPOUT_OUT, emb_dropout=DROPOUT_EMB).to(DEVICE)
+    model = LM_LSTM_DO(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"], out_dropout=DROPOUT_OUT, emb_dropout=DROPOUT_EMB, n_layers=N_LAYERS).to(DEVICE)
     model.apply(init_weights)
 
     if OPTIMIZER == 'SGD':
@@ -579,7 +583,7 @@ def train_model(
     best_model.to(DEVICE)
 
     # --------------------------------------------- POST TRAINING -----------------------------------------
-    path = path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER)
+    path = path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, N_LAYERS, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER)
     save_model(best_model, path)
 
     try: 
