@@ -1,0 +1,1 @@
+ID,Network Type,Learning Rate,Layers,Batch Size,Hidden Size,Embedding Size,Droput Emb,Droput Out,Optimizer,Epoche,PPL Test,Norm Loss Test,SEM Loss,CI Norm Loss Test,SEM PPL,CI PPL Test
