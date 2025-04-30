@@ -1,4 +1,12 @@
-ID,Network Type,Learning Rate,Layers,Batch Size,Hidden Size,Embedding Size,Droput Emb,Droput Out,Optimizer,Epoche,PPL Test,Norm Loss Test,SEM Loss,CI Norm Loss Test,SEM PPL,CI PPL Test
-1,LSTM,1,1,32,200,300,None,None,SGD,20,140.85,4.95,0.06,4.83-5.06,8.24,125.37-157.69
-2,LSTM,1,2,32,200,300,None,None,SGD,19,140.98,4.95,0.06,4.83-5.06,8.01,125.55-157.5
-3,LSTM,1,3,32,200,300,None,None,SGD,20,140.97,4.95,0.06,4.83-5.06,7.94,125.55-157.59
+ID,Network Type,Learning Rate,Layers,Batch Size,Hidden Size,Embedding Size,Droput,Optimizer,Epoche,PPL Test,Norm Loss Test,SEM Loss,CI Norm Loss Test,SEM PPL,CI PPL Test
+1,WeightTying,1,1,32,100,100,None,SGD,51,130.65,4.87,0.05,4.77-4.98,7.13,117.66-145.29
+2,WeightTying,1,1,32,300,300,None,SGD,27,119.37,4.78,0.06,4.67-4.9,7.12,106.34-133.63
+3,WeightTying,1,1,32,500,500,None,SGD,20,121.77,4.8,0.06,4.69-4.91,6.83,108.4-136.1
+4,VarDropout,1,1,32,300,300,0.1,SGD,39,107.4,4.68,0.06,4.56-4.79,6.58,95.29-120.71
+5,VarDropout,1,1,32,300,300,0.2,SGD,47,103.88,4.64,0.06,4.52-4.76,6.32,92.12-116.58
+6,VarDropout,1,1,32,300,300,0.5,SGD,89,95.3,4.56,0.06,4.44-4.67,5.73,84.85-106.68
+7,VarDropout,1,1,32,300,300,0.7,SGD,79,111.98,4.72,0.05,4.62-4.82,5.71,101.01-124.06
+8,VarDropout,1,1,32,500,500,0.5,SGD,56,95.86,4.56,0.06,4.44-4.68,5.65,85.09-107.38
+9,VarDropout,1,1,32,500,500,0.7,SGD,99,93.11,4.53,0.06,4.42-4.65,5.58,82.79-104.41
+10,VarDropout,2,1,32,700,700,0.5,SGD,32,93.26,4.54,0.06,4.41-4.65,5.84,82.4-104.91
+11,VarDropout,2,1,32,700,700,0.7,SGD,61,86.74,4.46,0.06,4.34-4.58,5.35,76.74-97.53

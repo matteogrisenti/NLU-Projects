@@ -14,7 +14,7 @@ from functools import partial
 from torch.utils.data import DataLoader
 
 from utils import collate_fn
-from model import LM_LSTM, LM_LSTM_WT
+from model import LM_LSTM_WT, LM_LSTM_VD
 
 # ------------------------------------------------------------------------------
 # Function: train_loop
@@ -237,18 +237,17 @@ def init_weights(mat):
 #     EMB_SIZE (int): Size of the embedding vectors.
 #     BATCH_SIZE (int): Size of the training batches.
 #     N_LAYERS (int): Number of layers in the model.
-#     DROPOUT_EMB (float): Dropout rate applied to the embedding layer.
-#     DROPOUT_OUT (float): Dropout rate applied to the output layer.
+#     DROPOUT: Dropout rate
 #     OPTIMIZER (str): Optimizer used for training (e.g., 'Adam', 'SGD').
 #
 # Returns:
 #     path (str): A formatted string with all the hyperparameters embedded,
 #                 suitable for use in filenames or directory paths.
 # ------------------------------------------------------------------------------
-def path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, N_LAYERS, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER):
+def path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, N_LAYERS, DROPOUT, OPTIMIZER):
     path = f"{LABEL}_lr-{str(LR).replace('.', ',')}_hid-{HID_SIZE}_emb-{EMB_SIZE}_batch-{BATCH_SIZE}_layers-{N_LAYERS}"
-    if DROPOUT_EMB is not None and DROPOUT_OUT is not None:
-        path += f"_dropEmb-{str(DROPOUT_EMB).replace('.', ',')}_dropOut-{str(DROPOUT_OUT).replace('.', ',')}"
+    if DROPOUT is not None:
+        path += f"_drop-{str(DROPOUT).replace('.', ',')}"
     path += f"_{OPTIMIZER}"
     return path
 
@@ -369,8 +368,7 @@ def get_last_experiment_id(filename):
 #     batch_size (int): Size of the training batches.
 #     hidden_size (int): Size of the hidden layers in the model.ù
 #     emb_size (int): Dimensionality of the embedding layer.
-#     dropout_emb (float): Dropout rate applied to the embedding layer.
-#     dropout_out (float): Dropout rate applied to the output layer.
+#     dropout (float): Dropout rate 
 #     optimizer (str): Optimizer used (e.g., 'Adam', 'SGD').
 #     epoche (int): Number of epochs the model was trained.
 #     test_ppl (float): Perplexity on the test set.
@@ -388,7 +386,7 @@ def get_last_experiment_id(filename):
 # Output:
 #     A new line is added to 'experiments.csv' recording the current experiment.
 # ------------------------------------------------------------------------------
-def save_experiment_results(network_type, lr, layers, batch_size, hidden_size, emb_size, dropout_emb, dropout_out, 
+def save_experiment_results(network_type, lr, layers, batch_size, hidden_size, emb_size, dropout, 
                             optimizer, epoche, test_ppl, lest_loss_norm, sem_loss, ci_loss, 
                             sem_ppl, ci_ppl):
     filename = 'experiments.csv'
@@ -399,7 +397,7 @@ def save_experiment_results(network_type, lr, layers, batch_size, hidden_size, e
     # print("File exists: ", file_exists)
     # If the file does not exist, create it and write the header
     with open(filename, 'a') as f:
-        f.write(f'{experiment_id},{network_type},{lr},{layers},{batch_size},{hidden_size},{emb_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(test_ppl, 2)},{round(lest_loss_norm, 2)},{round(sem_loss, 2)},{round(ci_loss[0], 2)}-{round(ci_loss[1], 2)},{round(sem_ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
+        f.write(f'{experiment_id},{network_type},{lr},{layers},{batch_size},{hidden_size},{emb_size},{dropout},{optimizer},{epoche},{round(test_ppl, 2)},{round(lest_loss_norm, 2)},{round(sem_loss, 2)},{round(ci_loss[0], 2)}-{round(ci_loss[1], 2)},{round(sem_ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
 
 
 
@@ -423,8 +421,7 @@ def save_experiment_results(network_type, lr, layers, batch_size, hidden_size, e
 #     HID_SIZE (int): Size of the RNN hidden layers.
 #     EMB_SIZE (int): Dimensionality of word embeddings.
 #     LR (float): Learning rate used by the optimizer.
-#     DROPOUT_EMB (float): Dropout probability for the embedding layer.
-#     DROPOUT_OUT (float): Dropout probability for the output layer.
+#     DROPOUT (float): Dropout probability 
 #     CLIP (float): Gradient clipping threshold to stabilize training.
 #     OPTIMIZER (str): Choice of optimizer, either 'SGD' or 'Adam'.
 #     DEVICE (torch.device): Device on which to perform training (CPU or GPU).
@@ -454,8 +451,7 @@ def train_model(
     EMB_SIZE,
     N_LAYERS,
     LR,
-    DROPOUT_EMB,
-    DROPOUT_OUT,
+    DROPOUT,
     CLIP,
     OPTIMIZER,
     DEVICE,
@@ -467,8 +463,7 @@ def train_model(
     print("\tEmbedding size: ", EMB_SIZE)
     print("\tNumber of layers: ", N_LAYERS)
     print("\tLearning rate: ", LR)
-    print("\tDropout embedding: ", DROPOUT_EMB)
-    print("\tDropout output: ", DROPOUT_OUT)
+    print("\tDropout: ", DROPOUT)
     print("\tOptimizer: ", OPTIMIZER)
     print("\tGradient clipping: ", CLIP)
 
@@ -483,7 +478,8 @@ def train_model(
 
     # --------------------------------------------- MODEL MANAGEMENT ----------------------------------------------
     vocab_len = len(lang.word2id)
-    model = LM_LSTM_WT(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"]).to(DEVICE)
+    #model = LM_LSTM_WT(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"]).to(DEVICE)
+    model = LM_LSTM_VD(EMB_SIZE, HID_SIZE, vocab_len, dropout=DROPOUT, pad_index=lang.word2id["<pad>"]).to(DEVICE)
     model.apply(init_weights)
 
     if OPTIMIZER == 'SGD':
@@ -532,7 +528,7 @@ def train_model(
     best_model.to(DEVICE)
 
     # --------------------------------------------- POST TRAINING -----------------------------------------
-    path = path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, N_LAYERS, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER)
+    path = path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, N_LAYERS, DROPOUT, OPTIMIZER)
     save_model(best_model, path)
 
     try: 
@@ -544,4 +540,4 @@ def train_model(
     final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl = test_eval_loop(test_loader, criterion_eval, best_model)    
     print('Test ppl: ', final_ppl)
 
-    save_experiment_results(LABEL ,LR, N_LAYERS, BATCH_SIZE, HID_SIZE, EMB_SIZE, DROPOUT_EMB, DROPOUT_OUT, OPTIMIZER, last_epoch, final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl)
+    save_experiment_results(LABEL ,LR, N_LAYERS, BATCH_SIZE, HID_SIZE, EMB_SIZE, DROPOUT, OPTIMIZER, last_epoch, final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl)

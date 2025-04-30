@@ -6,38 +6,13 @@ import math
 import numpy as np
 
 
-class VariationalDropout(nn.Module):
-    def __init__(self):
-        super(VariationalDropout, self).__init__()
-
-    def forward(self, x, dropout=0.5):
-        # x is the sequence of embedding: (batch_size, seq_len, emb_size)
-
-        # The dropout mask is used only during training
-        if not self.training or dropout == 0:
-            return x
-
-        # Create the dropout mask
-        dropout_mask = x.new_empty((x.size(0), 1, x.size(2))).bernoulli_(1 - dropout)
-        # x.new_empty((x.size(0), 1, x.size(2)))    ->     Same size as x but with 1 in the second dimension
-        # .bernoulli_(1 - dropout)                  ->     Create a mask with 1s and 0s, where 1s are kept and 0s are dropped out
-        
-        # NB: The second dimension is 1 because we want to apply the same dropout mask to all time steps in the sequence
-        # We have a different dropout mask for each sample in the batch which is applied to all time steps in the sequence.
-        
-        # The mask is rescaled: we are dividiving for a number between 0 and 1 (1 - dropout). 
-        # This allows to keep the mean of the output activation the same as the dropout will not be aplied. 
-        # So we are put to zero some activations, but we are also scaling the rest of the activations to keep the mean the same.
-        dropout_mask = dropout_mask.div_(1 - dropout)
-
-        # The dropout mask is applied to the input tensor
-        return x * dropout_mask
-
-
+#--------------------------------------------------------
+# LM_LSTM with Weight tying 
+# -------------------------------------------------------
 
 class LM_LSTM_WT(nn.Module):
     def __init__(self, emb_size, hidden_size, output_size, pad_index=0, n_layers=1, dropout=0.5):
-        super(LM_LSTM, self).__init__()
+        super(LM_LSTM_WT, self).__init__()
 
         # For weight tying, the embedding size must be equal to the hidden size
         assert emb_size == hidden_size, "Weight tying requires emb_size == hidden_size"
@@ -70,9 +45,42 @@ class LM_LSTM_WT(nn.Module):
 
 
 
-class LM_LSTM(nn.Module):
+
+#--------------------------------------------------------
+# LM_LSTM with Weight tying and Variational Dropout
+# -------------------------------------------------------
+
+class VariationalDropout(nn.Module):
+    def __init__(self):
+        super(VariationalDropout, self).__init__()
+
+    def forward(self, x, dropout=0.5):
+        # print("dropout: ", dropout)
+        # x is the sequence of embedding: (batch_size, seq_len, emb_size)
+
+        # The dropout mask is used only during training
+        if not self.training or dropout == 0:
+            return x
+
+        # Create the dropout mask
+        dropout_mask = x.new_empty((x.size(0), 1, x.size(2))).bernoulli_(1 - dropout)
+        # x.new_empty((x.size(0), 1, x.size(2)))    ->     Same size as x but with 1 in the second dimension
+        # .bernoulli_(1 - dropout)                  ->     Create a mask with 1s and 0s, where 1s are kept and 0s are dropped out
+        
+        # NB: The second dimension is 1 because we want to apply the same dropout mask to all time steps in the sequence
+        # We have a different dropout mask for each sample in the batch which is applied to all time steps in the sequence.
+        
+        # The mask is rescaled: we are dividiving for a number between 0 and 1 (1 - dropout). 
+        # This allows to keep the mean of the output activation the same as the dropout will not be aplied. 
+        # So we are put to zero some activations, but we are also scaling the rest of the activations to keep the mean the same.
+        dropout_mask = dropout_mask.div_(1 - dropout)
+
+        # The dropout mask is applied to the input tensor
+        return x * dropout_mask
+
+class LM_LSTM_VD(nn.Module):
     def __init__(self, emb_size, hidden_size, output_size, pad_index=0, n_layers=1, dropout=0.5):
-        super(LM_LSTM, self).__init__()
+        super(LM_LSTM_VD, self).__init__()
 
         # For weight tying, the embedding size must be equal to the hidden size
         assert emb_size == hidden_size, "Weight tying requires emb_size == hidden_size"

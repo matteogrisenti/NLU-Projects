@@ -28,23 +28,23 @@ print("\tVocab size: ", len(lang.word2id))
 
 
 # --------------------------------------------  HYPERPARAMETERS ------------------------------------------------
-LABEL = 'WeightTying'       # RNN, LSTM
+LABEL = 'VarDropout'       # RNN, LSTM
 BATCH_SIZE = 32      # Original 64
-HID_SIZE = 200       # Original 200
-EMB_SIZE = 300       # Original 300
-N_LAYERS = [1,2,3]   # Original 1
-LR = 1
-DROPOUT_EMB = None
-DROPOUT_OUT = None
+HID_SIZE = 700       # Original 200
+EMB_SIZE = 700       # Original 300
+N_LAYERS = 1   # Original 1
+LR = 2
+DROPOUT = [0.5, 0.7]
 OPTIMIZER = 'SGD'   # SGD or Adam
 CLIP = 5            # Clip the gradient -> avoid exploding gradients
 
 
 
 # -------------------------------------------- TRAINING ------------------------------------------------
-for j in range(len(N_LAYERS)):
-    n_layers = N_LAYERS[j]
+for j in range(len(DROPOUT)):
+    dropout = DROPOUT[j]
     
+    print("Training with dropout: ", dropout)
     # print("Training with learning rate: ", lr)
     # print("Training with batch size: ", batchsize)
     # print("Training with hidden size: ", hid_size)
@@ -59,10 +59,9 @@ for j in range(len(N_LAYERS)):
         BATCH_SIZE=BATCH_SIZE,
         HID_SIZE=HID_SIZE,
         EMB_SIZE=EMB_SIZE,
-        N_LAYERS=n_layers,
+        N_LAYERS=N_LAYERS,
         LR=LR,
-        DROPOUT_EMB=DROPOUT_EMB,
-        DROPOUT_OUT=DROPOUT_OUT,
+        DROPOUT=dropout,
         CLIP=CLIP,
         OPTIMIZER=OPTIMIZER,
         DEVICE=DEVICE,
