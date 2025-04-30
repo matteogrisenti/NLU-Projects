@@ -14,7 +14,7 @@ from functools import partial
 from torch.utils.data import DataLoader
 
 from utils import collate_fn
-from model import LM_LSTM
+from model import LM_LSTM, LM_LSTM_WT
 
 # ------------------------------------------------------------------------------
 # Function: train_loop
@@ -483,7 +483,7 @@ def train_model(
 
     # --------------------------------------------- MODEL MANAGEMENT ----------------------------------------------
     vocab_len = len(lang.word2id)
-    model = LM_LSTM(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"]).to(DEVICE)
+    model = LM_LSTM_WT(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"]).to(DEVICE)
     model.apply(init_weights)
 
     if OPTIMIZER == 'SGD':

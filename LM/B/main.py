@@ -28,7 +28,7 @@ print("\tVocab size: ", len(lang.word2id))
 
 
 # --------------------------------------------  HYPERPARAMETERS ------------------------------------------------
-LABEL = 'LSTM'       # RNN, LSTM
+LABEL = 'WeightTying'       # RNN, LSTM
 BATCH_SIZE = 32      # Original 64
 HID_SIZE = 200       # Original 200
 EMB_SIZE = 300       # Original 300

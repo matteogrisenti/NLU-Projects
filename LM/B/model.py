@@ -35,6 +35,41 @@ class VariationalDropout(nn.Module):
 
 
 
+class LM_LSTM_WT(nn.Module):
+    def __init__(self, emb_size, hidden_size, output_size, pad_index=0, n_layers=1, dropout=0.5):
+        super(LM_LSTM, self).__init__()
+
+        # For weight tying, the embedding size must be equal to the hidden size
+        assert emb_size == hidden_size, "Weight tying requires emb_size == hidden_size"
+
+        # From Token to Embedding
+        self.embedding = nn.Embedding(output_size, emb_size, padding_idx=pad_index)
+        
+        # From Embedding to Hidden State
+        self.rnn = nn.LSTM(emb_size, hidden_size, n_layers, bidirectional=False, batch_first=True)
+        self.pad_token = pad_index
+
+
+        # From Hidden State to Output
+        self.output = nn.Linear(hidden_size, output_size)
+
+        # Weight tying: the output layer's weights are tied to the embedding layer's weights
+        self.output.weight = self.embedding.weight
+        
+    def forward(self, input_sequence):
+        # 1. Embedding of the Token Input: (seq_len, batch_size) -> (batch_size, seq_len, emb_size)
+        emb = self.embedding(input_sequence)
+
+        # 2. LSTM: (batch_size, seq_len, emb_size) -> (batch_size, seq_len, hidden_size)
+        rnn_out, _  = self.rnn(emb)
+
+        # 3. Decoding: (batch_size, seq_len, hidden_size) -> (batch_size, seq_len, output_size)
+        output = self.output(rnn_out).permute(0,2,1)
+
+        return output 
+
+
+
 class LM_LSTM(nn.Module):
     def __init__(self, emb_size, hidden_size, output_size, pad_index=0, n_layers=1, dropout=0.5):
         super(LM_LSTM, self).__init__()
