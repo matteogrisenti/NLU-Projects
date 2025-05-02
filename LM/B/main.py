@@ -1,6 +1,6 @@
 import torch
 from utils import read_file, Lang, PennTreeBank
-from functions import train_model
+from functions import train_model, train_model_nt_avsgd
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -28,14 +28,12 @@ print("\tVocab size: ", len(lang.word2id))
 
 
 # --------------------------------------------  HYPERPARAMETERS ------------------------------------------------
-LABEL = 'VarDropout'       # RNN, LSTM
 BATCH_SIZE = 32      # Original 64
 HID_SIZE = 700       # Original 200
 EMB_SIZE = 700       # Original 300
 N_LAYERS = 1   # Original 1
 LR = 2
 DROPOUT = [0.5, 0.7]
-OPTIMIZER = 'SGD'   # SGD or Adam
 CLIP = 5            # Clip the gradient -> avoid exploding gradients
 
 
@@ -51,20 +49,18 @@ for j in range(len(DROPOUT)):
     # print("Training with embedding size: ", emb_size)
     # print("Training with hidden size: ", hid_size, " and embedding size: ", emb_size)
 
-    train_model(
-        train_dataset,
+    train_model_nt_avsgd(
+        train_dataset, 
         dev_dataset,
         test_dataset,
         lang,
-        BATCH_SIZE=BATCH_SIZE,
-        HID_SIZE=HID_SIZE,
-        EMB_SIZE=EMB_SIZE,
-        N_LAYERS=N_LAYERS,
-        LR=LR,
-        DROPOUT=dropout,
-        CLIP=CLIP,
-        OPTIMIZER=OPTIMIZER,
-        DEVICE=DEVICE,
-        LABEL=LABEL
+        BATCH_SIZE,
+        HID_SIZE,
+        EMB_SIZE,
+        N_LAYERS,
+        LR,
+        DROPOUT,
+        CLIP,
+        DEVICE,
     )
 

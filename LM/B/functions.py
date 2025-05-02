@@ -401,7 +401,6 @@ def save_experiment_results(network_type, lr, layers, batch_size, hidden_size, e
 
 
 
-
 # ------------------------------------------------------------------------------
 # Function: train_model
 #
@@ -541,3 +540,224 @@ def train_model(
     print('Test ppl: ', final_ppl)
 
     save_experiment_results(LABEL ,LR, N_LAYERS, BATCH_SIZE, HID_SIZE, EMB_SIZE, DROPOUT, OPTIMIZER, last_epoch, final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl)
+
+
+
+# ------------------------------------------------------------------------------
+# Function: train_model_nt_avsgd
+#
+# Description:
+#     Implements the Non-monotonically Triggered Averaged Stochastic Gradient Descent (NT-AvSGD) algorithm.
+#     This function trains a language model using the Penn Treebank dataset with
+#    specified hyperparameters. It handles the full pipeline from data preprocessing,
+#    model initialization, training loop with NT-AvSGD, and evaluation.
+#     Also manages logging, saving the best-performing model, and visualizing
+#    training metrics such as loss and perplexity.
+# 
+# Parameters:
+#     train_dataset (Dataset): Training dataset containing tokenized sentences.
+#     dev_dataset (Dataset): Validation dataset containing tokenized sentences.
+#     test_dataset (Dataset): Test dataset for final evaluation of the model.
+#     lang (Lang): Language object containing vocabulary mapping (word2id, id2word).
+#     BATCH_SIZE (int): Number of samples per training batch.
+#     HID_SIZE (int): Size of the RNN hidden layers.
+#     EMB_SIZE (int): Dimensionality of word embeddings.
+#     N_LAYERS (int): Number of layers in the model.
+#     LR (float): Learning rate used by the optimizer.
+#     DROPOUT (float): Dropout probability
+#     CLIP (float): Gradient clipping threshold to stabilize training.
+#     DEVICE (torch.device): Device on which to perform training (CPU or GPU).
+#     LOGGING_INTERVAL (int): Interval for logging validation perplexity.
+#     LABEL (str, optional): Identifier for the experiment run. Default is "NTAvSGD".
+#     NON_MONO_INTERVAL (int, optional): Non-monotone interval for NT-AvSGD. Default is 5.
+# 
+# Output:
+#     - Saves the best model to disk.
+#     - Outputs training progress to console.
+#     - Saves training visualization plots.
+#     - Logs final test evaluation metrics via `save_experiment_results`.
+# ------------------------------------------------------------------------------
+def train_model_nt_avsgd(
+    train_dataset, 
+    dev_dataset,
+    test_dataset,
+    lang,
+    BATCH_SIZE,
+    HID_SIZE,
+    EMB_SIZE,
+    N_LAYERS,
+    LR,
+    DROPOUT,
+    CLIP,
+    DEVICE,
+    LABEL="NTAvSGD",
+    NON_MONO_INTERVAL=5,
+    LOGGING_INTERVAL=None,
+):
+    
+    """
+    Implements Non-monotonically Triggered AvSGD (NT-AvSGD) Algorithm.
+        Inputs: Initial point w0, learning rate γ, logging interval L, non-monotone interval n.
+         1: Initialize 
+                k ← 0,      iteration count
+                t ← 0,      count of validation measure ( perplexity )
+                T ← 0,      flag to indicate if averaging is triggered
+                logs ← []   list to store validation measure values
+         2: while stopping criterion not met do
+         3:     Compute stochastic gradient ∇f(wt) and take SGD step.
+         4:     if mod(k, L) = 0 and T = 0 then
+         5:         Compute validation perplexity v.
+         6:         if t > n and v > min logs[l] then
+         7:             Set T ← k
+         8:         Append v to logs
+         9:         t ← t + 1  
+        10:     k ← k + 1
+        11: end while
+        return sum(wi)/(k-T+1)
+    """
+
+    # The paper suggests that the logging interval L should be the number of iterations in an epoch  .
+    if LOGGING_INTERVAL is None:
+        LOGGING_INTERVAL = len(train_loader)
+
+    print("HYPERPARAMETERS:")
+    print("\tBatch size: ", BATCH_SIZE)
+    print("\tHidden size: ", HID_SIZE)  
+    print("\tEmbedding size: ", EMB_SIZE)
+    print("\tNumber of layers: ", N_LAYERS)
+    print("\tLearning rate: ", LR)
+    print("\tDropout: ", DROPOUT)
+    print("\tGradient clipping: ", CLIP)
+    print("\tLogging interval: ", LOGGING_INTERVAL)
+    print("\tNon-monotone interval: ", NON_MONO_INTERVAL)
+
+    # Data loaders
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE,  collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE), shuffle=True)
+    dev_loader   = DataLoader(dev_dataset,   batch_size=BATCH_SIZE*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE))
+    test_loader  = DataLoader(test_dataset,  batch_size=BATCH_SIZE*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE))
+
+    # Model initialization
+    vocab_len = len(lang.word2id)
+    model = LM_LSTM_VD(EMB_SIZE, HID_SIZE, vocab_len, dropout=DROPOUT, pad_index=lang.word2id["<pad>"]).to(DEVICE)
+    model.apply(init_weights)
+    model.train()
+
+    criterion_train = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"])
+    criterion_eval = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"], reduction='sum')
+
+    # NT-AvSGD state
+    # Line 1: Initialize k ← 0, t ← 0, T ← 0, logs ← []
+    k = 0
+    t = 0
+    T = 0
+    logs = []
+    
+    averaged_params = None
+    averaging_steps = 0
+    best_ppl = math.inf
+    patience = 3
+    n_epochs = 100
+
+    sampled_epochs = []
+    losses_train = []
+    losses_dev = []
+    ppl_list_dev = []
+    pbar = tqdm(range(1, n_epochs))
+
+    for epoch in pbar:
+        running_loss = 0.0
+        for batch in train_loader:
+
+            # Line 3: Compute stochastic gradient ∇ˆf(wk) and take SGD step
+            # 3.1: Compute gradients
+            model.zero_grad()
+            output, target = batch
+            output = model(output)
+            loss = criterion_train(output.view(-1, output.size(-1)), target.view(-1))
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
+
+            # 3.2: Update parameters
+            for param in model.parameters():
+                if param.grad is not None:
+                    param.data -= LR * param.grad.data
+
+            running_loss += loss.item()
+
+            # Line 4: if mod(k, L) = 0 and T = 0 then
+            # So we compute the validation perplexity evry L iterations only if we not activate 
+            # the averaging ( T = 0 )
+            if k % LOGGING_INTERVAL == 0 and T == 0:
+
+                # 5: Compute validation perplexity v.
+                ppl, _ = eval_loop(dev_loader, criterion_eval, model)
+
+                # 6: if t > n and v > min logs[l] then
+                # If you have already made at least n previous evaluations, t > non_monotone_interval
+                # and the current perplexity is worse than the minimum of the last t−n previous measurements,
+                # then consider that the model is no longer improving.
+                if t > NON_MONO_INTERVAL and ppl > min(logs[:t - NON_MONO_INTERVAL]):
+
+                    # Line 7: Set T ← k
+                    T = k                                                           # Activate the averaging
+                    averaged_params = [p.data.clone() for p in model.parameters()]  # Start to accumulate weights for averaging
+                    averaging_steps = 1                                             # Initialize the number of iterations for averaging
+                
+                # 8: Append v to logs  
+                logs.append(ppl)
+
+                # 9: t ← t + 1
+                t += 1
+
+            elif T > 0:
+                # Update running average of parameters
+                for i, param in enumerate(model.parameters()):
+                    averaged_params[i].add_(param.data)
+                averaging_steps += 1
+            
+            # Line 10: k ← k + 1
+            k += 1
+
+        # Epoch-end evaluation
+        sampled_epochs.append(epoch)
+        avg_loss = running_loss / len(train_loader)
+        losses_train.append(avg_loss)
+
+        ppl_dev, loss_dev = eval_loop(dev_loader, criterion_eval, model)
+        losses_dev.append(loss_dev)
+        ppl_list_dev.append(ppl_dev)
+
+        pbar.set_description(f"Epoch {epoch} | PPL: {ppl_dev:.2f}")
+
+        if ppl_dev < best_ppl:
+            best_ppl = ppl_dev
+            patience = 3
+        else:
+            patience -= 1
+
+        if patience <= 0:
+            print(f"Early stopping at epoch {epoch}. Best PPL: {best_ppl}")
+            break
+
+    # Final parameter averaging
+    if T > 0:
+        print(f"Averaging from iteration {T} to {k} over {averaging_steps} steps.")
+        with torch.no_grad():
+            for i, param in enumerate(model.parameters()):
+                param.data.copy_(averaged_params[i] / averaging_steps)
+
+    # ------------------ POST-TRAINING ------------------
+    model.eval()
+    path = path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, N_LAYERS, DROPOUT, "NTAvSGD")
+    save_model(model, path)
+
+    try:
+        plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, path)
+    except Exception as e:
+        print(f"Plotting error: {e}")
+
+    final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl = test_eval_loop(test_loader, criterion_eval, model)
+    print(f"Final test PPL: {final_ppl}")
+
+    save_experiment_results(LABEL, LR, N_LAYERS, BATCH_SIZE, HID_SIZE, EMB_SIZE, DROPOUT, "NTAvSGD",
+                            epoch, final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl)
