@@ -29,20 +29,21 @@ print("\tVocab size: ", len(lang.word2id))
 
 # --------------------------------------------  HYPERPARAMETERS ------------------------------------------------
 BATCH_SIZE = 32      # Original 64
-HID_SIZE = 700       # Original 200
-EMB_SIZE = 700       # Original 300
-N_LAYERS = 1   # Original 1
-LR = 2
-DROPOUT = [0.5, 0.7]
+HID_SIZE = 900       # Original 200
+EMB_SIZE = 900       # Original 300
+N_LAYERS = [3]     # Original 1
+LR = 4
+DROPOUT = 0.7
 CLIP = 5            # Clip the gradient -> avoid exploding gradients
 
 
 
 # -------------------------------------------- TRAINING ------------------------------------------------
-for j in range(len(DROPOUT)):
-    dropout = DROPOUT[j]
+for j in range(len(N_LAYERS)):
+    n_layers = N_LAYERS[j]
     
-    print("Training with dropout: ", dropout)
+    print("Training with n_layers: ", n_layers)
+    # print("Training with dropout: ", dropout)
     # print("Training with learning rate: ", lr)
     # print("Training with batch size: ", batchsize)
     # print("Training with hidden size: ", hid_size)
@@ -57,10 +58,10 @@ for j in range(len(DROPOUT)):
         BATCH_SIZE,
         HID_SIZE,
         EMB_SIZE,
-        N_LAYERS,
+        n_layers,
         LR,
         DROPOUT,
         CLIP,
-        DEVICE,
+        DEVICE
     )
 

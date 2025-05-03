@@ -616,6 +616,11 @@ def train_model_nt_avsgd(
         return sum(wi)/(k-T+1)
     """
 
+    # Data loaders
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE,  collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE), shuffle=True)
+    dev_loader   = DataLoader(dev_dataset,   batch_size=BATCH_SIZE*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE))
+    test_loader  = DataLoader(test_dataset,  batch_size=BATCH_SIZE*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE))
+
     # The paper suggests that the logging interval L should be the number of iterations in an epoch  .
     if LOGGING_INTERVAL is None:
         LOGGING_INTERVAL = len(train_loader)
@@ -631,16 +636,12 @@ def train_model_nt_avsgd(
     print("\tLogging interval: ", LOGGING_INTERVAL)
     print("\tNon-monotone interval: ", NON_MONO_INTERVAL)
 
-    # Data loaders
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE,  collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE), shuffle=True)
-    dev_loader   = DataLoader(dev_dataset,   batch_size=BATCH_SIZE*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE))
-    test_loader  = DataLoader(test_dataset,  batch_size=BATCH_SIZE*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE))
 
     # Model initialization
     vocab_len = len(lang.word2id)
     model = LM_LSTM_VD(EMB_SIZE, HID_SIZE, vocab_len, dropout=DROPOUT, pad_index=lang.word2id["<pad>"]).to(DEVICE)
     model.apply(init_weights)
-    model.train()
+    model.train()  
 
     criterion_train = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"])
     criterion_eval = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"], reduction='sum')
@@ -671,9 +672,14 @@ def train_model_nt_avsgd(
             # Line 3: Compute stochastic gradient ∇ˆf(wk) and take SGD step
             # 3.1: Compute gradients
             model.zero_grad()
-            output, target = batch
-            output = model(output)
-            loss = criterion_train(output.view(-1, output.size(-1)), target.view(-1))
+            input_tensor = batch["source"]
+            target_tensor = batch["target"]
+            output = model(input_tensor).permute(0,2,1)
+            output_reshaped = output.reshape(-1, output.size(-1))   # Reshape output to [B*T, V]
+            target_reshaped = target_tensor.reshape(-1)              # Flatten target to [B*T]
+            #print("Output shape:", output_reshaped.shape)
+            #print("Target shape:", target_reshaped.shape)
+            loss = criterion_train(output_reshaped, target_reshaped)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
 
@@ -691,18 +697,19 @@ def train_model_nt_avsgd(
 
                 # 5: Compute validation perplexity v.
                 ppl, _ = eval_loop(dev_loader, criterion_eval, model)
-
+                model.train()
                 # 6: if t > n and v > min logs[l] then
                 # If you have already made at least n previous evaluations, t > non_monotone_interval
                 # and the current perplexity is worse than the minimum of the last t−n previous measurements,
                 # then consider that the model is no longer improving.
-                if t > NON_MONO_INTERVAL and ppl > min(logs[:t - NON_MONO_INTERVAL]):
+                if t > NON_MONO_INTERVAL and ppl > min(logs[t - NON_MONO_INTERVAL:t]):
 
                     # Line 7: Set T ← k
                     T = k                                                           # Activate the averaging
                     averaged_params = [p.data.clone() for p in model.parameters()]  # Start to accumulate weights for averaging
                     averaging_steps = 1                                             # Initialize the number of iterations for averaging
-                
+                    print(f"Triggering averaging at iteration {k} with PPL: {ppl:.2f}")
+
                 # 8: Append v to logs  
                 logs.append(ppl)
 
@@ -724,20 +731,25 @@ def train_model_nt_avsgd(
         losses_train.append(avg_loss)
 
         ppl_dev, loss_dev = eval_loop(dev_loader, criterion_eval, model)
+        model.train()
         losses_dev.append(loss_dev)
         ppl_list_dev.append(ppl_dev)
 
         pbar.set_description(f"Epoch {epoch} | PPL: {ppl_dev:.2f}")
 
+        
         if ppl_dev < best_ppl:
             best_ppl = ppl_dev
             patience = 3
         else:
-            patience -= 1
+            if T > 0:          # Decrease only after averaging
+                patience -= 1  
+            
 
         if patience <= 0:
             print(f"Early stopping at epoch {epoch}. Best PPL: {best_ppl}")
             break
+        
 
     # Final parameter averaging
     if T > 0:
