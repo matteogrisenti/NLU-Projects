@@ -1,0 +1,76 @@
+DATASET:
+        Train dataset size:  42068
+        Dev dataset size:  3370
+        Test dataset size:  3761
+        Vocab size:  10001
+Training with dropout:  0.5
+HYPERPARAMETERS:
+        Batch size:  32
+        Hidden size:  700
+        Embedding size:  700
+        Number of layers:  1
+        Learning rate:  2
+        Dropout:  0.5
+        Gradient clipping:  5
+        Logging interval:  1315
+        Non-monotone interval:  5
+Epoch 25 | PPL: 96.02:  25%|████████████████▏                                               | 25/99 [08:31<25:06, 20.35s/it]Triggering averaging at iteration 32875 with PPL: 96.53
+Epoch 30 | PPL: 95.52:  29%|██████████████████▋                                             | 29/99 [10:11<23:19, 19.99s/it]Early stopping at epoch 30. Best PPL: 95.14455732933962
+Epoch 30 | PPL: 95.52:  29%|██████████████████▋                                             | 29/99 [10:11<24:35, 21.08s/it]
+Averaging from iteration 32875 to 39450 over 6575 steps.
+Final test PPL: 89.80676730385049
+Training with dropout:  0.7
+HYPERPARAMETERS:
+        Batch size:  32
+        Hidden size:  700
+        Embedding size:  700
+        Number of layers:  1
+        Learning rate:  2
+        Dropout:  0.7
+        Gradient clipping:  5
+        Logging interval:  1315
+        Non-monotone interval:  5
+Epoch 36 | PPL: 94.80:  36%|███████████████████████▎                                        | 36/99 [12:12<21:21, 20.34s/it]Triggering averaging at iteration 47340 with PPL: 94.93
+Epoch 50 | PPL: 91.59:  49%|███████████████████████████████▋                                | 49/99 [16:51<16:37, 19.95s/it]Early stopping at epoch 50. Best PPL: 90.93567479696766
+Epoch 50 | PPL: 91.59:  49%|███████████████████████████████▋                                | 49/99 [16:51<17:12, 20.65s/it]
+Averaging from iteration 47340 to 65750 over 18410 steps.
+Final test PPL: 87.53293265346224
+(myenv) (base) disi@labEIOX5N:~/NLU-Projects/LM/B$ python main.py
+Using device:  cuda
+DATASET:
+        Train dataset size:  42068
+        Dev dataset size:  3370
+        Test dataset size:  3761
+        Vocab size:  10001
+Training with dropout:  0.5
+HYPERPARAMETERS:
+        Batch size:  32
+        Hidden size:  900
+        Embedding size:  900
+        Number of layers:  1
+        Learning rate:  2
+        Dropout:  0.5
+        Gradient clipping:  5
+        Logging interval:  1315
+        Non-monotone interval:  5
+Epoch 17 | PPL: 99.98:  17%|██████████▉                                                     | 17/99 [07:12<34:46, 25.45s/it]Triggering averaging at iteration 22355 with PPL: 100.83
+Epoch 28 | PPL: 96.88:  27%|█████████████████▍                                              | 27/99 [11:46<29:47, 24.83s/it]Early stopping at epoch 28. Best PPL: 96.26726455747412
+Epoch 28 | PPL: 96.88:  27%|█████████████████▍                                              | 27/99 [11:46<31:24, 26.17s/it]
+Averaging from iteration 22355 to 36820 over 14465 steps.
+Final test PPL: 90.95675785771677
+Training with dropout:  0.7
+HYPERPARAMETERS:
+        Batch size:  32
+        Hidden size:  900
+        Embedding size:  900
+        Number of layers:  1
+        Learning rate:  2
+        Dropout:  0.7
+        Gradient clipping:  5
+        Logging interval:  1315
+        Non-monotone interval:  5
+Epoch 29 | PPL: 94.53:  29%|██████████████████▋                                             | 29/99 [12:16<29:38, 25.41s/it]Triggering averaging at iteration 38135 with PPL: 94.61
+Epoch 55 | PPL: 88.64:  55%|██████████████████████████████████▉                             | 54/99 [23:02<18:35, 24.79s/it]Early stopping at epoch 55. Best PPL: 88.34795425064995
+Epoch 55 | PPL: 88.64:  55%|██████████████████████████████████▉                             | 54/99 [23:02<19:11, 25.60s/it]
+Averaging from iteration 38135 to 72325 over 34190 steps.
+Final test PPL: 85.03526465442066
