@@ -1,13 +1,19 @@
 import os
+import sys
 import csv
+import json
 import torch
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 
 from tqdm import tqdm
+from copy import deepcopy
+from pprint import pformat
 from conll import evaluate
 from sklearn.metrics import classification_report
+
+
 
 def init_weights(mat):
     """
@@ -49,6 +55,52 @@ def model_name(label, lr, hid_size, emb_size, batch_size, dropout, n_layer):
     if dropout is not None:
         name += f"_drop-{str(dropout).replace('.', ',')}"
     return name
+
+
+
+
+def save_training(sampled_epochs, losses_train, losses_dev, name): 
+    """
+    Saves training data (epochs, train/dev losses) into a JSON file for future plotting.
+
+    Args:
+        sampled_epochs (list): List of epoch numbers where loss was recorded.
+        losses_train (list): Training losses per sampled epoch.
+        losses_dev (list): Validation/dev losses per sampled epoch.
+        name (str): Name of the model/experiment (used in filename).
+    """
+    
+    # Ensure directory exists
+    save_dir = os.path.join('models', name)
+    os.makedirs(save_dir, exist_ok=True)
+    file_path = save_dir + '/training_data.json'
+    
+    # Create dictionary to save
+    training_data = {
+        "sampled_epochs": sampled_epochs,
+        "losses_train": losses_train,
+        "losses_dev": losses_dev,
+    }
+    
+    with open(file_path, 'w') as f:
+        json.dump(training_data, f, indent=4)
+    
+    print(f"\tTraining data saved to: {file_path}")
+
+
+
+
+
+def save_model(epoch, model, optimizer, w2id, slot2id, intent2id, name):
+    path = 'bin/' + name + '.pt'
+    saving_object = { "epoch": epoch, 
+                      "model": model.state_dict(), 
+                      "optimizer": optimizer.state_dict(), 
+                      "w2id": w2id, 
+                      "slot2id": slot2id, 
+                      "intent2id": intent2id
+                    }
+    torch.save(saving_object, path)
 
 
 
@@ -116,7 +168,7 @@ def save_results(label, lr, n_layer, hid_size, emb_size, batch_size, dropout,
 
         writer.writerow(data)  # Write the row with results and hyperparams
 
-    print(f"Results saved to {filename}")
+    print(f"\tResults saved to {filename}")
 
 
 
@@ -149,6 +201,18 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, clip=
         #   - utterances: token indices of shape (batch_size, seq_len)
         #   - slots_len: lengths of sequences for pack_padded_sequence
         slots, intent = model(sample['utterances'], sample['slots_len'])
+
+        # DEBUG: Print intent label info
+        # print("Intent targets:", sample['intents'])
+        # print("Intent shape:", sample['intents'].shape)
+        # print("Intent min/max:", sample['intents'].min().item(), sample['intents'].max().item())
+        # print("Num intent classes:", intent.shape[1])
+
+        # VALIDATE intent labels
+        num_classes = intent.shape[1]
+        assert (sample['intents'] >= 0).all(), "Negative intent labels found!"
+        assert (sample['intents'] < num_classes).all(), f"Intent label >= {num_classes} found!"
+
 
         # Compute intent loss
         # intent: (batch_size, num_intents)
@@ -300,101 +364,199 @@ def train_model(
     patience=3,
     clip=5,
     eval_every=5,
-    model_save_path="best_model.pt"
+    model_name="best_model",
+    device=None
 ):
     """
-    Trains the joint intent detection and slot filling model with early stopping.
+    Trains a joint intent detection and slot filling model with early stopping.
 
     Args:
         model (nn.Module): The neural network model to train.
         train_loader (DataLoader): DataLoader for training data.
         dev_loader (DataLoader): DataLoader for validation data.
         lang (object): Language object containing label mappings.
+        optimizer (torch.optim.Optimizer): Optimizer used for parameter updates.
+        criterion_slots (nn.CrossEntropyLoss): Loss function for slot filling.
+        criterion_intents (nn.CrossEntropyLoss): Loss function for intent classification.
         n_epochs (int): Maximum number of epochs to train.
-        patience (int): Number of epochs to wait before early stopping.
-        clip (float): Max gradient norm for clipping.
-        eval_every (int): Evaluate every N epochs.
-        model_save_path (str): Path to save the best model.
+        patience (int): Number of epochs without improvement before early stopping.
+        clip (float): Gradient norm clipping threshold.
+        eval_every (int): Frequency (in epochs) of evaluation on dev set.
+        model_name (str): Name of the model ( used to save it's performance ).
+        device (str or torch.device): Device to run the model on ('cuda', 'cpu', or None).
+                                     If None, uses CUDA if available.
 
     Returns:
-        best_model (nn.Module): The best saved model.
+        best_model (nn.Module): The best saved model based on dev performance.
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Set default device if not provided
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    losses_train = []
-    losses_dev = []
-    sampled_epochs = []
+    # Create logging file
+    save_dir = os.path.join('models', model_name)
+    os.makedirs(save_dir, exist_ok=True)
+    log_file = save_dir + "/training.txt"
+    print("\nTraining started...")
+    print(f"\tLogging training output to {log_file}")
 
-    best_f1 = 0.0
-    no_improvement = 0
+    # Redirect stdout to both console and file
+    class Logger:
+        def __init__(self, file):
+            self.file = file
+            self.stdout = sys.stdout
+            
+        def write(self, data):
+            self.stdout.write(data)
+            self.file.write(data)
+            
+        def flush(self):
+            self.stdout.flush()
+            self.file.flush()
 
-    print("Training started...")
-    for epoch in tqdm(range(1, n_epochs + 1)):
+    # Open log file and redirect output
+    with open(log_file, 'w') as f:
+        sys.stdout = Logger(f)
 
-        # Training step
-        model.train()
-        loss = train_loop(train_loader, optimizer, criterion_slots, criterion_intents, model, clip=clip)
-        losses_train.append(np.mean(loss))
+        try:
+            losses_train = []
+            losses_dev = []
+            sampled_epochs = []
 
-        # Evaluation step
-        if epoch % eval_every == 0:
-            sampled_epochs.append(epoch)
+            best_f1 = 0.0
+            no_improvement = 0
 
-            model.eval()
-            results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, criterion_intents, model, lang)
-            losses_dev.append(np.mean(loss_dev))
+            
+            for epoch in tqdm(range(1, n_epochs + 1)):
 
-            current_f1 = results_dev['total']['f']
-            print(f"Epoch {epoch} | Dev Slot F1: {current_f1:.4f} | Intent Acc: {intent_res['accuracy']:.4f}")
+                # Training step
+                model.train()
+                loss = train_loop(train_loader, optimizer, criterion_slots, criterion_intents, model, clip=clip)
+                losses_train.append(np.mean(loss))
 
-            # Save best model
-            if current_f1 > best_f1:
-                print(f"New best F1: {current_f1:.4f}, saving model...")
-                best_f1 = current_f1
-                torch.save(model.state_dict(), model_save_path)
-                no_improvement = 0
-            else:
-                no_improvement += 1
+                # Evaluation step
+                if epoch % eval_every == 0:
+                    sampled_epochs.append(epoch)
 
-            # Early stopping
-            if no_improvement >= patience:
-                print("Early stopping triggered.")
-                break
+                    model.eval()
+                    results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, criterion_intents, model, lang)
+                    losses_dev.append(np.mean(loss_dev))
 
-    print("Training completed.")
+                    current_f1 = results_dev['total']['f']
+                    print(f"Epoch {epoch} | Dev Slot F1: {current_f1:.4f} | Intent Acc: {intent_res['accuracy']:.4f}")
+
+                    # Save best model
+                    if current_f1 > best_f1:
+                        print(f"New best F1: {current_f1:.4f}")
+                        best_f1 = current_f1
+                        no_improvement = 0
+                        best_model = deepcopy(model)
+                    else:
+                        no_improvement += 1
+
+                    # Early stopping
+                    if no_improvement >= patience:
+                        print("Early stopping triggered.")
+                        break
+
+            save_training(sampled_epochs, losses_train, losses_dev, model_name)  # Save the training data
+            save_model(epoch, best_model, optimizer, lang.word2id, lang.slot2id, lang.intent2id, model_name)  # Save best model
+
+            print("Training completed.")
+
+        finally:
+            sys.stdout = sys.stdout.stdout   # Restore stdout
+
     return model
 
 
 
 
-def test_model(model, test_loader, criterion_slots, criterion_intents, lang, model_save_path="best_model.pt"):
+def save_test(results_test, intent_test, model_name):
     """
-    Loads the best model and evaluates it on the test set.
+    Save test results in a nicely formatted way to JSON file.
 
     Args:
-        model (nn.Module): The model architecture (untrained).
+        results_test (dict): Slot filling results (F1 scores per tag)
+        intent_test (dict): Intent classification results (precision/recall/f1)
+        model_name (str): Name of the model for saving purposes
+    """
+    # Create directories if not exist
+    save_dir = os.path.join('models', model_name)
+    os.makedirs(save_dir, exist_ok=True)
+    file_path_json = save_dir + '/test_data.json'
+
+    slot_f1 = results_test['total']['f']
+    intent_acc = intent_test['accuracy']
+
+    full_results = {
+        "slot_results": results_test,
+        "intent_results": intent_test,
+        "metrics": {
+            "slot_f1": slot_f1,
+            "intent_accuracy": intent_acc
+        }
+    }
+
+    with open(file_path_json, 'w', encoding='utf-8') as fj:
+        json.dump(full_results, fj, indent=4, ensure_ascii=False)
+
+    print(f"\tResults saved to: {file_path_json}")
+
+
+
+
+def test_model(
+    model,
+    test_loader,
+    criterion_slots,
+    criterion_intents,
+    lang,
+    model_name="best_model",
+    device=None
+):
+    """
+    Loads the best model and evaluates it on the test dataset.
+
+    Args:
+        model (nn.Module): Model architecture (untrained/unloaded).
         test_loader (DataLoader): DataLoader for test data.
         criterion_slots (nn.CrossEntropyLoss): Loss function for slots.
         criterion_intents (nn.CrossEntropyLoss): Loss function for intents.
-        lang (object): Language object with label mappings.
-        model_save_path (str): Path where the best model was saved.
+        lang (object): Language object containing label mappings.
+        model_name (str): name of the best model was saved.
+        device (str or torch.device): Device to run the model on ('cuda', 'cpu', or None).
+                                      If None, uses CUDA if available.
 
     Returns:
         results_test (dict): Dictionary with test slot metrics.
         intent_test (dict): Classification report for intents.
     """
-    print(f"Loading {model_save_path} for testing...")
+    path = 'bin/' + model_name + '.pt'
+    print(f"\nTest for model {model_name}")
+
+    # Set default device if not provided
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     try:
-        # Load the saved state dictionary into the model
-        model.load_state_dict(torch.load(model_save_path))
-        model.eval()  # Set model to evaluation mode
-        print(f"Model loaded successfully from {model_save_path}")
+        # Load the saved checkpoint
+        checkpoint = torch.load(path, map_location=device, weights_only=True)
+
+        model.load_state_dict(checkpoint['model'])      # Load the model state dictionary
+        model.to(device)                                # Move model to appropriate device
+        model.eval()                                    # Set model to evaluation mode
+
+        print(f"\tModel loaded successfully from {path}")
         
     except FileNotFoundError:
-        raise FileNotFoundError(f"Model file not found at {model_save_path}. Make sure the model was saved correctly.")
+        raise FileNotFoundError(f"Model file not found at {path}. Make sure the model was saved correctly.")
     
+    except KeyError as e:
+        raise KeyError(f"Missing key in state_dict: {e}. The saved model might be incomplete or incompatible.")
+
     except RuntimeError as e:
         raise RuntimeError(f"Error loading model: {e}. Check that the model architecture matches the saved weights.")
     
@@ -403,6 +565,8 @@ def test_model(model, test_loader, criterion_slots, criterion_intents, lang, mod
 
     results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, criterion_intents, model, lang)
 
+    save_test(results_test, intent_test, model_name)
+        
     print('Slot F1:', results_test['total']['f'])
     print('Intent Accuracy:', intent_test['accuracy'])
 

@@ -102,11 +102,9 @@ def get_train_dev_test_set():
 
 
 #--------------------- DICTIONARY Word/Slot/Intent to ID and ID to Word/Slot/Intent ------------------------
-FILE_PATH = 'vocabularies.txt'
-
 # Language class to map words, slots and intents to IDs
 class Lang():
-    def __init__(self, words, intents, slots, PAD_TOKEN=0, cutoff=0):
+    def __init__(self, words, intents, slots, PAD_TOKEN=0, cutoff=0, name='voc'):
         """
         Initializes vocabulary mappings from lists of words, intents and slots.
         
@@ -124,7 +122,7 @@ class Lang():
         self.id2slot = {v:k for k, v in self.slot2id.items()}
         self.id2intent = {v:k for k, v in self.intent2id.items()}
 
-        self.save_vocab()
+        self.save_vocab(name)
         
     def w2id(self, elements, cutoff=None, unk=True):
         """Map words to IDs"""
@@ -146,23 +144,27 @@ class Lang():
                 vocab[elem] = len(vocab)
         return vocab
     
-    def save_vocab(self):
+    def save_vocab(self, name):
         """Save vocabularies to file"""
-        with open(FILE_PATH, 'w', encoding='utf-8') as f:
+        save_dir = os.path.join('models', name)
+        os.makedirs(save_dir, exist_ok=True)
+        log_file = save_dir + "/vocabulary.txt"
+
+        with open(log_file, 'w', encoding='utf-8') as f:
 
             def write_section(title, data):
                 f.write(f"\n{title}\n")
                 f.write("-" * len(title) + "\n")
                 f.write(pformat(data, indent=2, width=100) + "\n\n")
 
-            write_section("Word Vocabulary:", self.word2id)
-            write_section("Intent Vocabulary:", self.intent2id)
-            write_section("Slot Vocabulary:", self.slot2id)
+            #write_section("Word Vocabulary:", self.word2id)
+            #write_section("Intent Vocabulary:", self.intent2id)
+            #write_section("Slot Vocabulary:", self.slot2id)
             write_section("Sorted Word Vocabulary (by ID):", sorted(self.word2id.items(), key=lambda x: x[1]))
             write_section("Sorted Intent Vocabulary (by ID):", sorted(self.intent2id.items(), key=lambda x: x[1]))
             write_section("Sorted Slot Vocabulary (by ID):", sorted(self.slot2id.items(), key=lambda x: x[1]))
 
-        print(f"\tVocab saved to {FILE_PATH}")
+        print(f"\tVocab saved to {log_file}")
 
 
 
@@ -272,7 +274,7 @@ def collate_fn(data, PAD_TOKEN = 0, device='cpu'):
 
 
 # Main function to initialize everything
-def init_dataloader(batch_size = 128, PAD_TOKEN=0, device='cpu'):
+def init_dataloader(batch_size = 128, PAD_TOKEN=0, device='cpu', name='voc'):
     """
     Initialize train, dev, test dataloaders and language model.
 
@@ -289,10 +291,11 @@ def init_dataloader(batch_size = 128, PAD_TOKEN=0, device='cpu'):
     print("\tBuilding vocabulary...")
     words = sum([x['utterance'].split() for x in train_raw], [])    # No set() since we want to compute the cutoff
     corpus = train_raw + dev_raw + test_raw     # We do not wat unk labels, however this depends on the research purpose
-    intents = [x['intent'] for x in corpus]
-    slots = sum([x['slots'].split() for x in corpus], [])
+    
+    slots = set(sum([line['slots'].split() for line in corpus],[]))
+    intents = set([line['intent'] for line in corpus])
 
-    lang = Lang(words, intents, slots, PAD_TOKEN, cutoff=0)    # Create the Dictionaries
+    lang = Lang(words, intents, slots, PAD_TOKEN, cutoff=0, name=name)    # Create the Dictionaries
 
     # Step 3: Create dataset objects
     train_dataset = IntentsAndSlots(train_raw, lang)
@@ -302,8 +305,8 @@ def init_dataloader(batch_size = 128, PAD_TOKEN=0, device='cpu'):
     # Step 4: Create dataloaders
     print("\tCreating dataloaders...")
     train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=lambda x: collate_fn(x, PAD_TOKEN, device), shuffle=True)
-    dev_loader = DataLoader(dev_dataset, batch_size=(batch_size/2), collate_fn=lambda x: collate_fn(x, PAD_TOKEN, device))
-    test_loader = DataLoader(test_dataset, batch_size=(batch_size/2), collate_fn=lambda x: collate_fn(x, PAD_TOKEN, device))
+    dev_loader = DataLoader(dev_dataset, batch_size=int(batch_size/2), collate_fn=lambda x: collate_fn(x, PAD_TOKEN, device))
+    test_loader = DataLoader(test_dataset, batch_size=int(batch_size/2), collate_fn=lambda x: collate_fn(x, PAD_TOKEN, device))
 
     print("Dataloaders initialized!")
     return train_loader, dev_loader, test_loader, lang
