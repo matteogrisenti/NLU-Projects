@@ -25,6 +25,10 @@ def train_plot(model_name, sampled_epochs, losses_train, losses_dev):
     plt.ylabel('Loss')
     plt.xlabel('Epochs')
 
+    # Set fixed axis limits
+    plt.xlim(0, 200)   # X-axis from 0 to 200
+    plt.ylim(0, 9)     # Y-axis from 0 to 9
+
     # Plot full training curve
     all_epochs = list(range(1, len(losses_train) + 1))
     plt.plot(all_epochs, losses_train, label='Train Loss', color=COLOR_TRAIN, alpha=0.7)
@@ -38,13 +42,14 @@ def train_plot(model_name, sampled_epochs, losses_train, losses_dev):
 
     # Save the plot
     save_plot(model_name, "training")
-    plt.show()
+    # plt.show()
+    plt.close()
 
 
 
 def slot_plot(model_name, uploaded_json):
-        # Extract slot f1 scores, excluding 'total'
-    slot_f1 = {k: v['f'] for k, v in uploaded_json['slot_results'].items() if k != 'total'}
+    # Extract slot f1 scores, excluding 'total'
+    slot_f1 = {k: v['f'] for k, v in uploaded_json['results_dev'].items() if k != 'total'}
 
     # Sort alphabetically by slot tag name
     sorted_slot_f1 = dict(sorted(slot_f1.items()))
@@ -68,27 +73,46 @@ def slot_plot(model_name, uploaded_json):
 
     # Save the plot
     save_plot(model_name, "slot_f1")
-    plt.show()
+    # plt.show()
+    plt.close()
 
 
-
-def intent_plot(model_name, uploaded_json):
-    # Extract intent accuracies
-    intent_acc = {
-        k: v['accuracy'] for k, v in uploaded_json['intent_results'].items()
-        if k not in ['accuracy', 'macro avg', 'weighted avg']
-    }
+def intent_plot(model_name, uploaded_json, metric='f1-score'):
+    # Extract intent metrics
+    intent_metrics = {}
+    intent_res = uploaded_json['intent_res']
+    for intent, results in intent_res.items():
+        if intent not in ['accuracy', 'ci_95_beta', 'macro avg', 'weighted avg']:
+            if metric == 'precision':
+                val = results['precision']
+            elif metric == 'recall':
+                val = results['recall']
+            elif metric == 'f1-score':
+                val = results['f1-score']
+            else:
+                raise ValueError("metric must be one of 'precision', 'recall', or 'f1-score'")
+            
+            intent_metrics[intent] = val
 
     # Sort alphabetically by intent name
-    sorted_intent_acc = dict(sorted(intent_acc.items()))
+    sorted_metrics = dict(sorted(intent_metrics.items()))
 
     # Plotting
     plt.figure(figsize=(14, 10))
-    bars = plt.barh(list(sorted_intent_acc.keys()), list(sorted_intent_acc.values()), color='skyblue')
-    plt.xlabel("Accuracy")
-    plt.title("Intent Classification Accuracy")
+    bars = plt.barh(list(sorted_metrics.keys()), list(sorted_metrics.values()), color='skyblue')
+    plt.xlabel(metric.capitalize())
+    plt.title(f"Intent Classification - {metric.capitalize()}")
     plt.xlim(0, 1.05)
-    plt.axvline(x=uploaded_json['intent_results']['accuracy'], color='r', linestyle='--', label="Overall Accuracy")
+    
+    # Add macro and weighted average lines
+    macro_avg = intent_res['macro avg'].get(metric)
+    weighted_avg = intent_res['weighted avg'].get(metric)
+
+    if macro_avg is not None:
+        plt.axvline(x=macro_avg, color='g', linestyle='--', label="Macro Avg")
+    if weighted_avg is not None:
+        plt.axvline(x=weighted_avg, color='orange', linestyle='--', label="Weighted Avg")
+    
     plt.grid(axis='x')
     plt.legend()
     plt.tight_layout()
@@ -99,8 +123,8 @@ def intent_plot(model_name, uploaded_json):
         plt.text(width + 0.01, bar.get_y() + 0.2, f'{width:.2f}', va='center')
 
     # Save the plot
-    save_plot(model_name, "intent_accuracy")
-    plt.show()
+    save_plot(model_name, f"intent-{metric}")
+    plt.close()
 
 
 
@@ -117,13 +141,15 @@ def plot_all(model_name):
     train_plot(model_name, training_data['sampled_epochs'], training_data['losses_train'], training_data['losses_dev'])
 
 
-    # Load the test_data JSON file
-    with open(os.path.join('models', model_name, 'test_data.json'), 'r') as f:
-        test_data = json.load(f)
+    # Load the dev_data JSON file
+    with open(os.path.join('models', model_name, 'dev_data.json'), 'r') as f:
+        dev_data = json.load(f)
 
-    slot_plot(model_name, test_data)         # Plot the slot f1 scores
-    intent_plot(model_name, test_data)       # Plot the intent accuracies
+    slot_plot(model_name, dev_data)         # Plot the slot f1 scores
+    intent_plot(model_name, dev_data)       # Plot the intent accuracies
+
+    print(f"Plots saved in models/{model_name}/plots/")
 
 
-
-plot_all('SimpleIAS_lr-0,0001_hid-200_emb-300_batch-128_layers-1')
+# plot_all('SimpleIAS_lr-0,0001_hid-200_emb-300_batch-128_layers-1')
+# plot_all('SimpleIAS_lr-0,001_hid-200_emb-300_batch-128_layers-1')

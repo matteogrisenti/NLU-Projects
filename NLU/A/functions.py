@@ -5,6 +5,7 @@ import json
 import torch
 import numpy as np
 import torch.nn as nn
+import scipy.stats as st
 import torch.optim as optim
 
 from tqdm import tqdm
@@ -103,10 +104,8 @@ def save_model(epoch, model, optimizer, w2id, slot2id, intent2id, name):
     torch.save(saving_object, path)
 
 
-
-
-def save_results(label, lr, n_layer, hid_size, emb_size, batch_size, dropout, 
-                 results_slot, intent_report, mod='TRAIN'):
+def save_dev(label, lr, n_layer, hid_size, emb_size, batch_size, dropout, 
+                 slot_f1, f1_ci_95, intent_accuracy, ci_95_beta):
     """
     Saves training/validation or test results along with hyperparameters to a CSV file.
 
@@ -118,27 +117,15 @@ def save_results(label, lr, n_layer, hid_size, emb_size, batch_size, dropout,
         emb_size (int): Embedding size.
         batch_size (int): Batch size used during training.
         dropout (float): Dropout rate.
-        results_slot (dict): Slot filling results from evaluate(ref, hyp).
-                             Expected key: 'total' -> {'f': f1_score}
-        intent_report (dict): Intent classification report from sklearn.
-                              Expected key: 'accuracy'
-        mod (str): Mode: 'TRAIN' or 'TEST'. Determines which file to write to.
+        slot_f1: Slot F1 score.
+        f1_ci_95: 95% confidence interval for F1 score.
+        intent_accuracy: Intent accuracy.
+        ci_95_beta: 95% confidence interval for intent accuracy.
     """
     
-    # Determine filename based on mode
-    if mod == 'TRAIN':
-        filename = 'results/dev.csv'
-    elif mod == 'TEST':
-        filename = 'results/test.csv'
-    else:
-        raise ValueError("Invalid mode. Use 'TRAIN' or 'TEST'.")
-    
     # Create file if it doesn't exist, append otherwise
+    filename = 'results/dev.csv'
     file_exists = os.path.isfile(filename)
-    
-    # Extract metrics
-    slot_f1 = results_slot['total']['f']
-    intent_acc = intent_report['accuracy']
 
     # Prepare data to write
     data = {
@@ -148,15 +135,17 @@ def save_results(label, lr, n_layer, hid_size, emb_size, batch_size, dropout,
         'hidden_size': hid_size,
         'embedding_size': emb_size,
         'batch_size': batch_size,
-        'dropout': dropout,
-        'slot_f1': slot_f1,
-        'intent_acc': intent_acc,
+        'dropout': dropout or None,
+        'slot_f1': round(slot_f1, 4),             # Slot F1 score rounded to 2 decimal places
+        '95% CI': f"{round(f1_ci_95[0], 4)} - {round(f1_ci_95[1], 4)}",  # 95% CI for F1 score
+        'intent_acc': round(intent_accuracy, 4),   # Intent accuracy rounded to 2 decimal places
+        '95% CI (beta)': f"{round(ci_95_beta[0], 4)} - {round(ci_95_beta[1], 4)}"  # 95% CI for intent accuracy
     }
 
     # Define fieldnames for CSV header
     fieldnames = [
         'label', 'learning_rate', 'n_layers', 'hidden_size', 'embedding_size',
-        'batch_size', 'dropout', 'slot_f1', 'intent_acc', 'timestamp'
+        'batch_size', 'dropout', 'slot_f1', '95% CI', 'intent_acc', '95% CI (beta)'
     ]
 
     # Write to CSV
@@ -171,6 +160,24 @@ def save_results(label, lr, n_layer, hid_size, emb_size, batch_size, dropout,
     print(f"\tResults saved to {filename}")
 
 
+def save_dev_results(dev_results, name):
+    """
+    Saves the development results to a JSON file.
+
+    Args:
+        dev_results (dict): Development results containing loss and metrics.
+        name (str): Name of the model/experiment (used in filename).
+    """
+    
+    # Ensure directory exists
+    save_dir = os.path.join('models', name)
+    os.makedirs(save_dir, exist_ok=True)
+    file_path = save_dir + '/dev_data.json'
+    
+    with open(file_path, 'w') as f:
+        json.dump(dev_results, f, indent=4)
+    
+    print(f"\tDevelopment results saved to: {file_path}")
 
 
 def train_loop(data, optimizer, criterion_slots, criterion_intents, model, clip=5):
@@ -346,6 +353,28 @@ def eval_loop(data, criterion_slots, criterion_intents, model, lang):
         zero_division=False, 
         output_dict=True
     )
+
+
+    # Calculate beta 95 confidence interval for intent accuracy 
+    correct = sum(r == h for r, h in zip(ref_intents, hyp_intents))
+    total = len(ref_intents)
+
+    ci_beta_low, ci_beta_high = st.beta.interval(0.95, correct + 1, total - correct + 1)
+    report_intent['ci_95_beta'] = (ci_beta_low, ci_beta_high)
+
+
+    # Calculate the sem and 95 confidence interval for slot F1 score
+    slot_f1 = results['total']['f']
+    n_slots = results['total']['s']
+    if n_slots > 0:
+        sem_f1 = (slot_f1 * (1 - slot_f1) / n_slots) ** 0.5
+        ci_f1_low, ci_f1_high = st.norm.interval(0.95, loc=slot_f1, scale=sem_f1)
+    else:
+        sem_f1 = 0
+        ci_f1_low, ci_f1_high = 0, 0
+
+    results['total']['f1_ci_95'] = (ci_f1_low, ci_f1_high)
+    results['total']['sem'] = sem_f1
     
     return results, report_intent, loss_array
 
@@ -365,7 +394,8 @@ def train_model(
     clip=5,
     eval_every=5,
     model_name="best_model",
-    device=None
+    device=None,
+    hyperparameters=None
 ):
     """
     Trains a joint intent detection and slot filling model with early stopping.
@@ -385,6 +415,7 @@ def train_model(
         model_name (str): Name of the model ( used to save it's performance ).
         device (str or torch.device): Device to run the model on ('cuda', 'cpu', or None).
                                      If None, uses CUDA if available.
+        hyperparameters (dict): Hyperparameters for the model (optional).
 
     Returns:
         best_model (nn.Module): The best saved model based on dev performance.
@@ -421,12 +452,15 @@ def train_model(
         sys.stdout = Logger(f)
 
         try:
-            losses_train = []
-            losses_dev = []
-            sampled_epochs = []
+            losses_train = []       # To store training losses
+            losses_dev = []         # To store dev losses
+            sampled_epochs = []     # To store epochs where dev loss was recorded
+            
+            best_model = None       # To store the best model
+            best_f1 = 0.0           # Initialize best F1 score
+            no_improvement = 0      # Counter for early stopping
 
-            best_f1 = 0.0
-            no_improvement = 0
+            dev_results = {}        # Development results of the best model
 
             
             for epoch in tqdm(range(1, n_epochs + 1)):
@@ -452,7 +486,12 @@ def train_model(
                         print(f"New best F1: {current_f1:.4f}")
                         best_f1 = current_f1
                         no_improvement = 0
-                        best_model = deepcopy(model)
+                        best_model = deepcopy(model)        # Save the best model
+                        dev_results = {
+                            "loss_dev": loss_dev,
+                            "results_dev": results_dev,
+                            "intent_res": intent_res
+                        }
                     else:
                         no_improvement += 1
 
@@ -461,15 +500,22 @@ def train_model(
                         print("Early stopping triggered.")
                         break
 
-            save_training(sampled_epochs, losses_train, losses_dev, model_name)  # Save the training data
-            save_model(epoch, best_model, optimizer, lang.word2id, lang.slot2id, lang.intent2id, model_name)  # Save best model
+            save_training(sampled_epochs, losses_train, losses_dev, model_name)  # Save the training data in a JSON file
+            save_dev_results(dev_results, model_name)                            # Save the dev results in a JSON file
+            # Save the dev results in a CSV file
+            save_dev(hyperparameters['label'], hyperparameters['lr'], hyperparameters['n_layer'],
+                     hyperparameters['hid_size'], hyperparameters['emb_size'], hyperparameters['batch_size'], 
+                     hyperparameters['dropout'], dev_results['results_dev']['total']['f'], dev_results['results_dev']['total']['f1_ci_95'],
+                     dev_results['intent_res']['accuracy'], dev_results['intent_res']['ci_95_beta'])  
+            # Save best model
+            save_model(epoch, best_model, optimizer, lang.word2id, lang.slot2id, lang.intent2id, model_name) 
 
             print("Training completed.")
 
         finally:
             sys.stdout = sys.stdout.stdout   # Restore stdout
 
-    return model
+    return best_model
 
 
 
