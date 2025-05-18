@@ -122,7 +122,7 @@ class Lang():
         self.id2slot = {v:k for k, v in self.slot2id.items()}
         self.id2intent = {v:k for k, v in self.intent2id.items()}
 
-        self.save_vocab(name)
+        self.save_json(name)
         
     def w2id(self, elements, cutoff=None, unk=True):
         """Map words to IDs"""
@@ -143,28 +143,58 @@ class Lang():
         for elem in elements:
                 vocab[elem] = len(vocab)
         return vocab
-    
-    def save_vocab(self, name):
-        """Save vocabularies to file"""
+
+    def to_dict(self):
+        return {
+            'word2id': self.word2id,
+            'id2word': self.id2word,
+            'intent2id': self.intent2id,
+            'id2intent': self.id2intent,
+            'slot2id': self.slot2id,
+            'id2slot': self.id2slot,
+            'pad_token': self.PAD_TOKEN
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        obj = cls.__new__(cls)  # create instance without calling __init__
+        obj.word2id = data['word2id']
+        obj.id2word = {int(k): v for k, v in data['id2word'].items()}
+        obj.intent2id = data['intent2id']
+        obj.id2intent = {int(k): v for k, v in data['id2intent'].items()}
+        obj.slot2id = data['slot2id']
+        obj.id2slot = {int(k): v for k, v in data['id2slot'].items()}
+        obj.PAD_TOKEN = data['pad_token']
+        obj.name = data.get('name', 'vocab')
+        obj.cutoff = data.get('cutoff', 0)
+        return obj
+
+    def save_json(self, name):
+        """Save vocabularies as JSON for later loading"""
         save_dir = os.path.join('models', name)
         os.makedirs(save_dir, exist_ok=True)
-        log_file = save_dir + "/vocabulary.txt"
+        json_file = os.path.join(save_dir, "vocab.json")
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(self.to_dict(), f, indent=2)
+        print(f"\tVocab JSON saved to {json_file}")
+    
+    '''
+    def save_json_2(self, name):
+        """Save vocabularies as JSON for later loading"""
+        save_dir = os.path.join('models', name)
+        os.makedirs(save_dir, exist_ok=True)
+        json_file = os.path.join(save_dir, "vocab_test.json")
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(self.to_dict(), f, indent=2)
+        print(f"\tVocab JSON saved to {json_file}")
+    '''
 
-        with open(log_file, 'w', encoding='utf-8') as f:
-
-            def write_section(title, data):
-                f.write(f"\n{title}\n")
-                f.write("-" * len(title) + "\n")
-                f.write(pformat(data, indent=2, width=100) + "\n\n")
-
-            #write_section("Word Vocabulary:", self.word2id)
-            #write_section("Intent Vocabulary:", self.intent2id)
-            #write_section("Slot Vocabulary:", self.slot2id)
-            write_section("Sorted Word Vocabulary (by ID):", sorted(self.word2id.items(), key=lambda x: x[1]))
-            write_section("Sorted Intent Vocabulary (by ID):", sorted(self.intent2id.items(), key=lambda x: x[1]))
-            write_section("Sorted Slot Vocabulary (by ID):", sorted(self.slot2id.items(), key=lambda x: x[1]))
-
-        print(f"\tVocab saved to {log_file}")
+    @staticmethod
+    def load_json(filepath):
+        """Load vocabulary from a JSON file"""
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return Lang.from_dict(data)
 
 
 
@@ -290,7 +320,7 @@ def init_dataloader(batch_size = 128, PAD_TOKEN=0, device='cpu', name='voc'):
     # Step 2: Build vocab from train + dev + test
     print("\tBuilding vocabulary...")
     words = sum([x['utterance'].split() for x in train_raw], [])    # No set() since we want to compute the cutoff
-    corpus = train_raw + dev_raw + test_raw     # We do not wat unk labels, however this depends on the research purpose
+    corpus = train_raw + dev_raw + test_raw                         # We do not wat unk labels, however this depends on the research purpose
     
     slots = set(sum([line['slots'].split() for line in corpus],[]))
     intents = set([line['intent'] for line in corpus])
@@ -310,3 +340,41 @@ def init_dataloader(batch_size = 128, PAD_TOKEN=0, device='cpu', name='voc'):
 
     print("Dataloaders initialized!")
     return train_loader, dev_loader, test_loader, lang
+
+
+def init_dataloader_test(batch_size=128, PAD_TOKEN=0, device='cpu', name='voc'):
+    """
+    Initialize test dataloader using a previously saved vocabulary in JSON format.
+
+    Args:
+        batch_size (int): Batch size for DataLoader.
+        PAD_TOKEN (int): Padding token index.
+        device (str): Device to use ('cuda' or 'cpu').
+        name (str): Name of the vocabulary directory (inside models/).
+
+    Returns:
+        tuple: test_loader, lang
+    """
+
+    # Step 1: Load the saved vocabulary
+    try: 
+        vocab_path = os.path.join('models', name, 'vocab.json')
+        lang = Lang.load_json(vocab_path)
+        # lang.save_json_2(name)  # Save the loaded vocabulary to ensure it's in the correct format
+    except FileNotFoundError:
+        print(f"Vocabulary file not found at {vocab_path}. Please ensure the file exists.")
+        return None, None
+
+    # Step 2: Get test data
+    _, _, test_raw = get_train_dev_test_set()
+
+    # Step 3: Create test dataset and dataloader
+    test_dataset = IntentsAndSlots(test_raw, lang)
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=int(batch_size / 2),
+        collate_fn=lambda x: collate_fn(x, PAD_TOKEN, device)
+    )
+
+    print("Test dataloader initialized using saved vocabulary.")
+    return test_loader, lang

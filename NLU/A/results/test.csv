@@ -1,0 +1,2 @@
+label,learning_rate,n_layers,hidden_size,embedding_size,batch_size,dropout,slot_f1,95% CI,intent_acc,95% CI (beta)
+SimpleIAS,0.001,1,200,300,128,,0.9253,0.9156 - 0.935,0.9272,0.9083 - 0.9424

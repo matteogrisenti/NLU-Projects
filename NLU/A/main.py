@@ -1,4 +1,6 @@
 import os
+import torch
+import shutil
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
@@ -7,12 +9,12 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 from model import ModelIAS
-from utils import init_dataloader
+from utils import init_dataloader, init_dataloader_test
 from functions import init_weights, model_name, train_model,test_model
 from plot import plot_all
 
 
-def train_dev_model(hyperparameters):
+def training_dev_model(hyperparameters):
     """
     This function is used to train and dev a model, it will also plot the results.
 
@@ -40,7 +42,7 @@ def train_dev_model(hyperparameters):
     name = model_name(label, lr, hid_size, emb_size, batch_size, dropout, n_layer)
 
     # ------------------------------------- DATASET MENAGMENT -----------------------------------------------
-    train_loader, dev_loader, test_loader, lang = init_dataloader(batch_size, PAD_TOKEN, device, name)
+    train_loader, dev_loader, _ , lang = init_dataloader(batch_size, PAD_TOKEN, device, name)
 
     out_slot = len(lang.slot2id)
     out_int = len(lang.intent2id)
@@ -68,6 +70,63 @@ def train_dev_model(hyperparameters):
     plot_all(name)
 
 
+def testing_model(hyperparameters):
+    """
+    This function is used to test a model
+
+    Args:
+        hyperparameters (dict): A dictionary containing the hyperparameters for the model.
+            - label (str): The label for the model.
+            - hid_size (int): The hidden size of the model.
+            - emb_size (int): The embedding size of the model.
+            - n_layer (int): The number of layers in the model.
+            - batch_size (int): The batch size for training.
+            - lr (float): The learning rate for the optimizer.
+            - clip (float): The gradient clipping value.
+            - dropout (float): The dropout rate for the model.
+    """
+    # Unpack hyperparameters
+    label = hyperparameters['label']
+    hid_size = hyperparameters['hid_size']
+    emb_size = hyperparameters['emb_size']
+    n_layer = hyperparameters['n_layer']
+    batch_size = hyperparameters['batch_size']
+    lr = hyperparameters['lr']
+    clip = hyperparameters['clip']
+    dropout = hyperparameters['dropout']
+
+    name = model_name(label, lr, hid_size, emb_size, batch_size, dropout, n_layer)
+    old_path = os.path.join('bin', 'others', f"{name}.pt")
+    new_path = os.path.join('bin', f"{name}.pt")
+
+    # Move the file if it hasn't been moved already
+    if os.path.exists(old_path) and not os.path.exists(new_path):
+        shutil.move(old_path, new_path)
+
+    # Load the checkpoint dict
+    checkpoint = torch.load(new_path, weights_only=False)
+
+    # Rebuild the model architecture
+    model = ModelIAS(checkpoint['hid_size'], checkpoint['out_slot'], checkpoint['out_int'], checkpoint['emb_size'], checkpoint['vocab_len'], n_layer=checkpoint['n_layer'], pad_index=checkpoint['pad_index']).to(device)
+
+    # Load saved weights into model
+    model.load_state_dict(checkpoint['model'])
+
+    # Set model to evaluation mode
+    model.eval()
+
+    # Load the test data
+    test_loader, lang = init_dataloader_test(batch_size, PAD_TOKEN, device, name)
+
+    # Define the loss functions
+    criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_TOKEN)
+    criterion_intents = nn.CrossEntropyLoss() # Because we do not have the pad token
+
+    # Test the model
+    test_model(model, test_loader, criterion_slots, criterion_intents, lang, name, device=device, hyperparameters=hyperparameters)
+
+
+
 
 
 # ------------------------------------------ SETUP ------------------------------------------------------
@@ -81,13 +140,31 @@ label = 'SimpleIAS'
 
 hid_size = 200      # originally 200
 emb_size = 300      # originally 300
-n_layer = 1         # originally 1
-batch_size = 128    # originally 128
+n_layer = 1          # originally 1
+batch_size = 128     # originally 128
 
 lr = 0.001          # originally 0.0001
-clip = 5            # originally 5
+clip = 5                             # originally 5
 dropout = None
 
+'''
+for i in range(len(hid_size)):
+
+    hyperparameters = {
+        'label': label,
+        'hid_size': hid_size[i],
+        'emb_size': emb_size[i],
+        'n_layer': n_layer,
+        'batch_size': batch_size,
+        'lr': lr,
+        'clip': clip,
+        'dropout': dropout
+    }
+
+    #---------------------------------- TRAINING AND DEVLOPMENT -----------------------------------------------
+    training_dev_model(hyperparameters)
+'''
+# ------------------------------------------ TESTING ----------------------------------------------------
 hyperparameters = {
     'label': label,
     'hid_size': hid_size,
@@ -99,12 +176,7 @@ hyperparameters = {
     'dropout': dropout
 }
 
-#---------------------------------- TRAINING AND DEVLOPMENT -----------------------------------------------
-# train_dev_model(hyperparameters)
-
-# ------------------------------------------ TESTING ----------------------------------------------------
-results_test, intent_test = test_model(model, test_loader, criterion_slots, criterion_intents, lang, 
-                                      name, device=device)
+testing_model(hyperparameters)
 
 
 
