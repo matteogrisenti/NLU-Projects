@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
-from model import ModelIAS
+from model import ModelIAS, BiModelIAS
 from utils import init_dataloader, init_dataloader_test
 from functions import init_weights, model_name, train_model,test_model
 from plot import plot_all
@@ -50,7 +50,7 @@ def training_dev_model(hyperparameters):
 
 
     # -------------------------------------- MODEL DEFINITION ------------------------------------------------
-    model = ModelIAS(hid_size, out_slot, out_int, emb_size, vocab_len, n_layer=n_layer, pad_index=PAD_TOKEN).to(device)
+    model = BiModelIAS(hid_size, out_slot, out_int, emb_size, vocab_len, n_layer=n_layer, pad_index=PAD_TOKEN).to(device)
     model.apply(init_weights)
 
 
@@ -107,7 +107,7 @@ def testing_model(hyperparameters):
     checkpoint = torch.load(new_path, weights_only=False)
 
     # Rebuild the model architecture
-    model = ModelIAS(checkpoint['hid_size'], checkpoint['out_slot'], checkpoint['out_int'], checkpoint['emb_size'], checkpoint['vocab_len'], n_layer=checkpoint['n_layer'], pad_index=checkpoint['pad_index']).to(device)
+    model = BiModelIAS(checkpoint['hid_size'], checkpoint['out_slot'], checkpoint['out_int'], checkpoint['emb_size'], checkpoint['vocab_len'], n_layer=checkpoint['n_layer'], pad_index=checkpoint['pad_index']).to(device)
 
     # Load saved weights into model
     model.load_state_dict(checkpoint['model'])
@@ -138,16 +138,16 @@ PAD_TOKEN = 0
 # -------------------------------------- HYPERPARAMETERS ------------------------------------------------
 label = 'SimpleIAS'
 
-hid_size = 200      # originally 200
-emb_size = 300      # originally 300
-n_layer = 1          # originally 1
-batch_size = 128     # originally 128
+hid_size = [200,400,600]      # originally 200
+emb_size = [300,600,900]      # originally 300
+n_layer = 1                   # originally 1
+batch_size = 128              # originally 128
 
 lr = 0.001          # originally 0.0001
 clip = 5                             # originally 5
 dropout = None
 
-'''
+
 for i in range(len(hid_size)):
 
     hyperparameters = {
@@ -177,7 +177,7 @@ hyperparameters = {
 }
 
 testing_model(hyperparameters)
-
+'''
 
 
 
