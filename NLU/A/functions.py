@@ -91,7 +91,7 @@ def save_training(sampled_epochs, losses_train, losses_dev, name):
 
 
 
-def save_model(name, model, optimizer, hid_size, out_slot, out_int, emb_size, vocab_len, n_layer, pad_index):
+def save_model(name, model, optimizer, hid_size, out_slot, out_int, emb_size, vocab_len, n_layer, pad_index, dropout=None):
     path = 'bin/others/' + name + '.pt'
     saving_object = { "model": model.state_dict(), 
                       "optimizer": optimizer.state_dict(), 
@@ -103,8 +103,11 @@ def save_model(name, model, optimizer, hid_size, out_slot, out_int, emb_size, vo
                       "n_layer": n_layer,
                       "pad_index": pad_index
                     }
+    if dropout is not None:
+        saving_object["dropout"] = dropout
+
     print(f"\tSaving model to {path}:")
-    print(f"\t\t hid_size: {hid_size} \n\t\t out_slot: {out_slot} \n\t\t out_int: {out_int} \n\t\t emb_size: {emb_size} \n\t\t vocab_len: {vocab_len} \n\t\t n_layer: {n_layer} \n\t\t pad_index: {pad_index}")
+    print(f"\t\t hid_size: {hid_size} \n\t\t out_slot: {out_slot} \n\t\t out_int: {out_int} \n\t\t emb_size: {emb_size} \n\t\t vocab_len: {vocab_len} \n\t\t n_layer: {n_layer} \n\t\t pad_index: {pad_index} \n\t\t dropout: {dropout}")
     torch.save(saving_object, path)
 
 
@@ -522,7 +525,7 @@ def train_model(
                      dev_results['intent_res']['accuracy'], dev_results['intent_res']['ci_95_beta'])  
             # Save best model
             save_model(model_name, best_model, optimizer, hyperparameters['hid_size'],  len(lang.slot2id), len(lang.intent2id), hyperparameters['emb_size'],
-                       len(lang.word2id), hyperparameters['n_layer'], lang.PAD_TOKEN)  # Save the best model
+                       len(lang.word2id), hyperparameters['n_layer'], lang.PAD_TOKEN, hyperparameters['dropout'])  # Save the best model
 
             print("Training completed.")
 

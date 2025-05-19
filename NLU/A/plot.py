@@ -26,8 +26,8 @@ def train_plot(model_name, sampled_epochs, losses_train, losses_dev):
     plt.xlabel('Epochs')
 
     # Set fixed axis limits
-    plt.xlim(0, 200)   # X-axis from 0 to 200
-    plt.ylim(0, 9)     # Y-axis from 0 to 9
+    # plt.xlim(0, 200)   # X-axis from 0 to 200
+    # plt.ylim(0, 9)     # Y-axis from 0 to 9
 
     # Plot full training curve
     all_epochs = list(range(1, len(losses_train) + 1))
@@ -153,3 +153,7 @@ def plot_all(model_name):
 
 # plot_all('SimpleIAS_lr-0,0001_hid-200_emb-300_batch-128_layers-1')
 # plot_all('SimpleIAS_lr-0,001_hid-200_emb-300_batch-128_layers-1')
+
+# plot_all('Bidirectional_lr-0,001_hid-600_emb-900_batch-128_layers-1')
+# plot_all('Bidirectional_lr-0,001_hid-400_emb-600_batch-128_layers-1')
+# plot_all('Bidirectional_lr-0,001_hid-200_emb-300_batch-128_layers-1')

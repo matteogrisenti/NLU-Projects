@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
-from model import ModelIAS, BiModelIAS
+from model import ModelIAS, BiModelIAS, DoModelIAS
 from utils import init_dataloader, init_dataloader_test
 from functions import init_weights, model_name, train_model,test_model
 from plot import plot_all
@@ -50,7 +50,9 @@ def training_dev_model(hyperparameters):
 
 
     # -------------------------------------- MODEL DEFINITION ------------------------------------------------
-    model = BiModelIAS(hid_size, out_slot, out_int, emb_size, vocab_len, n_layer=n_layer, pad_index=PAD_TOKEN).to(device)
+    # model = ModelIAS(hid_size, out_slot, out_int, emb_size, vocab_len, n_layer=n_layer, pad_index=PAD_TOKEN).to(device)
+    # model = BiModelIAS(hid_size, out_slot, out_int, emb_size, vocab_len, n_layer=n_layer, pad_index=PAD_TOKEN).to(device)
+    model = DoModelIAS(hid_size, out_slot, out_int, emb_size, vocab_len, n_layer=n_layer, pad_index=PAD_TOKEN, dropout=dropout).to(device)
     model.apply(init_weights)
 
 
@@ -107,8 +109,9 @@ def testing_model(hyperparameters):
     checkpoint = torch.load(new_path, weights_only=False)
 
     # Rebuild the model architecture
-    model = BiModelIAS(checkpoint['hid_size'], checkpoint['out_slot'], checkpoint['out_int'], checkpoint['emb_size'], checkpoint['vocab_len'], n_layer=checkpoint['n_layer'], pad_index=checkpoint['pad_index']).to(device)
-
+    # model = BiModelIAS(checkpoint['hid_size'], checkpoint['out_slot'], checkpoint['out_int'], checkpoint['emb_size'], checkpoint['vocab_len'], n_layer=checkpoint['n_layer'], pad_index=checkpoint['pad_index']).to(device)
+    model = DoModelIAS(checkpoint['hid_size'], checkpoint['out_slot'], checkpoint['out_int'], checkpoint['emb_size'], checkpoint['vocab_len'], n_layer=checkpoint['n_layer'], pad_index=checkpoint['pad_index'], dropout=checkpoint['dropout']).to(device)
+    
     # Load saved weights into model
     model.load_state_dict(checkpoint['model'])
 
@@ -136,29 +139,29 @@ os.environ['CUDA_LAUNCH_BLOCKING'] = "1" # Used to report errors on CUDA side
 PAD_TOKEN = 0
 
 # -------------------------------------- HYPERPARAMETERS ------------------------------------------------
-label = 'SimpleIAS'
+label = 'Dropout'
 
-hid_size = [200,400,600]      # originally 200
-emb_size = [300,600,900]      # originally 300
+hid_size = 600      # originally 200
+emb_size = 900      # originally 300
 n_layer = 1                   # originally 1
 batch_size = 128              # originally 128
 
 lr = 0.001          # originally 0.0001
 clip = 5                             # originally 5
-dropout = None
+dropout = [0.3, 0.5, 0.7] 
 
 
-for i in range(len(hid_size)):
+for i in range(len(dropout)):
 
     hyperparameters = {
         'label': label,
-        'hid_size': hid_size[i],
-        'emb_size': emb_size[i],
+        'hid_size': hid_size,
+        'emb_size': emb_size,
         'n_layer': n_layer,
         'batch_size': batch_size,
         'lr': lr,
         'clip': clip,
-        'dropout': dropout
+        'dropout': dropout[i]
     }
 
     #---------------------------------- TRAINING AND DEVLOPMENT -----------------------------------------------
@@ -177,8 +180,8 @@ hyperparameters = {
 }
 
 testing_model(hyperparameters)
-'''
 
+'''
 
 
 
