@@ -1,0 +1,26 @@
+Epoch 5 | Dev Slot F1: 0.9540 | Intent Acc: 0.9719
+New best F1: 0.9540
+Epoch 10 | Dev Slot F1: 0.9754 | Intent Acc: 0.9799
+New best F1: 0.9754
+Epoch 15 | Dev Slot F1: 0.9781 | Intent Acc: 0.9799
+New best F1: 0.9781
+Epoch 20 | Dev Slot F1: 0.9790 | Intent Acc: 0.9799
+New best F1: 0.9790
+Epoch 25 | Dev Slot F1: 0.9796 | Intent Acc: 0.9799
+New best F1: 0.9796
+Epoch 30 | Dev Slot F1: 0.9793 | Intent Acc: 0.9799
+Epoch 35 | Dev Slot F1: 0.9796 | Intent Acc: 0.9799
+Epoch 40 | Dev Slot F1: 0.9796 | Intent Acc: 0.9799
+Early stopping triggered.
+	Training data saved to: models\Bidirectional_lr-0,001_hid-400_emb-600_batch-128_layers-1/training_data.json
+	Development results saved to: models\Bidirectional_lr-0,001_hid-400_emb-600_batch-128_layers-1/dev_data.json
+	Results saved to results/dev.csv
+	Saving model to bin/others/Bidirectional_lr-0,001_hid-400_emb-600_batch-128_layers-1.pt:
+		 hid_size: 400 
+		 out_slot: 130 
+		 out_int: 26 
+		 emb_size: 600 
+		 vocab_len: 866 
+		 n_layer: 1 
+		 pad_index: 0
+Training completed.
