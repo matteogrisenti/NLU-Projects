@@ -141,27 +141,27 @@ PAD_TOKEN = 0
 # -------------------------------------- HYPERPARAMETERS ------------------------------------------------
 label = 'Dropout'
 
-hid_size = 600      # originally 200
-emb_size = 900      # originally 300
-n_layer = 1                   # originally 1
-batch_size = 128              # originally 128
+hid_size = 900                # originally 200
+emb_size = 600                # originally 300
+n_layer = 1             # originally 1
+batch_size = 32                # originally 128
 
-lr = 0.001          # originally 0.0001
+lr = 0.001                           # originally 0.0001
 clip = 5                             # originally 5
-dropout = [0.3, 0.5, 0.7] 
+dropout = 0.5 
 
-
-for i in range(len(dropout)):
+'''
+for i in range(len(n_layer)):
 
     hyperparameters = {
         'label': label,
         'hid_size': hid_size,
         'emb_size': emb_size,
-        'n_layer': n_layer,
+        'n_layer': n_layer[i],
         'batch_size': batch_size,
         'lr': lr,
         'clip': clip,
-        'dropout': dropout[i]
+        'dropout': dropout
     }
 
     #---------------------------------- TRAINING AND DEVLOPMENT -----------------------------------------------
@@ -181,7 +181,7 @@ hyperparameters = {
 
 testing_model(hyperparameters)
 
-'''
+
 
 
 
