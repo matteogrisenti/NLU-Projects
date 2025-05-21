@@ -1,19 +1,14 @@
-Epoch 5 | Dev Slot F1: 0.9701 | Intent Acc: 0.9819
-New best F1: 0.9701
-Epoch 10 | Dev Slot F1: 0.9772 | Intent Acc: 0.9900
-New best F1: 0.9772
-Epoch 15 | Dev Slot F1: 0.9779 | Intent Acc: 0.9900
-New best F1: 0.9779
-Epoch 20 | Dev Slot F1: 0.9773 | Intent Acc: 0.9920
-Epoch 25 | Dev Slot F1: 0.9684 | Intent Acc: 0.9839
-Epoch 30 | Dev Slot F1: 0.9779 | Intent Acc: 0.9839
-New best F1: 0.9779
-Epoch 35 | Dev Slot F1: 0.9767 | Intent Acc: 0.9819
-Epoch 40 | Dev Slot F1: 0.9782 | Intent Acc: 0.9880
-New best F1: 0.9782
-Epoch 45 | Dev Slot F1: 0.9778 | Intent Acc: 0.9859
-Epoch 50 | Dev Slot F1: 0.9779 | Intent Acc: 0.9859
-Epoch 55 | Dev Slot F1: 0.9735 | Intent Acc: 0.9900
+Epoch 5 | Dev Slot F1: 0.9728 | Intent Acc: 0.9819
+New best F1: 0.9728
+Epoch 10 | Dev Slot F1: 0.9776 | Intent Acc: 0.9839
+New best F1: 0.9776
+Epoch 15 | Dev Slot F1: 0.9802 | Intent Acc: 0.9859
+New best F1: 0.9802
+Epoch 20 | Dev Slot F1: 0.9814 | Intent Acc: 0.9859
+New best F1: 0.9814
+Epoch 25 | Dev Slot F1: 0.9805 | Intent Acc: 0.9880
+Epoch 30 | Dev Slot F1: 0.9808 | Intent Acc: 0.9859
+Epoch 35 | Dev Slot F1: 0.9746 | Intent Acc: 0.9859
 Early stopping triggered.
 	Training data saved to: models/Dropout_lr-0,001_hid-600_emb-900_batch-32_layers-2_drop-0,5/training_data.json
 	Development results saved to: models/Dropout_lr-0,001_hid-600_emb-900_batch-32_layers-2_drop-0,5/dev_data.json
