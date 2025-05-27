@@ -28,7 +28,7 @@ class BertIntentSlot(nn.Module):
         self.slot_classifier = nn.Linear(self.bert.config.hidden_size, num_slot_labels)
         
 
-    def forward(self, input_ids, attention_mask, token_type_ids):
+    def forward(self, input_ids, attention_mask, token_type_ids=None):
         """
         Forward pass through the model.
         
@@ -49,7 +49,7 @@ class BertIntentSlot(nn.Module):
         outputs = self.bert(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            token_type_ids=token_type_ids,
+            # token_type_ids=token_type_ids,
             return_dict=True                        # allows access via named fields: outputs.last_hidden_state, outputs.pooler_output
         )
 
@@ -67,5 +67,18 @@ class BertIntentSlot(nn.Module):
         slot_logits = self.slot_classifier(sequence_output)
 
         return slot_logits, intent_logits
+
+
+    def init_classification_heads(self):
+        '''
+        Initialize the weights of the classification heads using Xavier initialization.
+        NB: I have to change the init_weight of part A becouse it can interfere with the init of the BERT model.
+        '''
+        # Xavier init for your classifiers
+        for classifier in [self.intent_classifier, self.slot_classifier]:
+            nn.init.xavier_uniform_(classifier.weight)
+            if classifier.bias is not None:
+                classifier.bias.data.fill_(0.0)
+
 
 
