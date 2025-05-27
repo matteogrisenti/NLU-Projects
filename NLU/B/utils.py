@@ -120,7 +120,7 @@ def get_test_rawset():
 
 def preprocess_raw(raw_data):
     '''
-    Preprocess the raw data in order to get a from that will be used by the BERT Tokenizzer.
+    Preprocess the raw data in order to get a form that will be used by the BERT Tokenizzer.
     It simply split the utterance in an array of  words and the the slots in an array of slots
     '''
     return [
@@ -195,7 +195,7 @@ def init_dataset():
 
 class AtisDataset(Dataset):
     """
-    PyTorch Dataset for ATIS using a non-Fast tokenizer.
+    PyTorch Dataset for ATIS using a tokenizer.
     - Manually tokenizes each word and aligns slot labels.
     - Ignores sub-token labels unless label_all_tokens is True.
     """
@@ -221,15 +221,23 @@ class AtisDataset(Dataset):
         sub_tokens = []
         aligned_slot_labels = []
 
+        # Tokenize each word and align slot labels
         for word, slot in zip(words, slots):
+            # Tokenize the word using the tokenizer
             word_pieces = self.tokenizer.tokenize(word)
+
+            # If the word is not tokenized, use the unknown token
             if not word_pieces:
                 word_pieces = [self.tokenizer.unk_token]
+
+            # Extend the sub_tokens with the tokenized word pieces
             sub_tokens.extend(word_pieces)
 
             if self.label_all_tokens:
+                # If label_all_tokens is True, assign the slot label to each sub-token of the origina word
                 aligned_slot_labels.extend([self.slot_list.index(slot)] * len(word_pieces))
             else:
+                # If label_all_tokens is False, assign the slot label only to the first sub-token, the rest are ignored
                 aligned_slot_labels.append(self.slot_list.index(slot))
                 aligned_slot_labels.extend([-100] * (len(word_pieces) - 1))
 
@@ -238,7 +246,7 @@ class AtisDataset(Dataset):
             sub_tokens = sub_tokens[:self.max_length - 2]
             aligned_slot_labels = aligned_slot_labels[:self.max_length - 2]
 
-        # Add special tokens
+        # Add special tokens: [CLS] and [SEP]
         sub_tokens = [self.tokenizer.cls_token] + sub_tokens + [self.tokenizer.sep_token]
         aligned_slot_labels = [-100] + aligned_slot_labels + [-100]
 
@@ -253,6 +261,27 @@ class AtisDataset(Dataset):
             'slot_labels': torch.tensor(aligned_slot_labels, dtype=torch.long),
             'intent_label': intent
         }
+
+def test_AtisDataset(dataset, records):
+    """
+    Uning during the development of this project to test the AtisDataset and if it correclty menage the sub-tokenisation. 
+    It prints the first 10 items in the dataset to verify the tokenization and alignment.
+    """
+    print("Testing AtisDataset...")
+    for i in range(10):
+
+        original_record = records[i]
+        item = dataset[i]
+
+        print(f"Item {i}:")
+        print(f"\tOriginal Words: {original_record['words']}")
+        print(f"\tBert Sub-Token: {item['word_pieces']}")
+        print(f"\tAttention Mask: {item['attention_mask']}")
+        print(f"\tSlots Labels: {original_record['slots']}")
+        print(f"\tSlot Tokens:  {item['slot_labels']}")
+        print(f"\tIntent Label: {original_record['intent_label']}")
+        print(f"\tIntent Token: {item['intent_label']}")
+       
 
 
 
