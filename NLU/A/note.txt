@@ -1,0 +1,2 @@
+1) try different lr and batch size. Resuls are very similar so i decide to keep batch 
+size 128 becose is more fast and lr 0,001 becose is balanced

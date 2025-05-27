@@ -1,0 +1,25 @@
+Epoch 5 | Dev Slot F1: 0.9728 | Intent Acc: 0.9819
+New best F1: 0.9728
+Epoch 10 | Dev Slot F1: 0.9776 | Intent Acc: 0.9839
+New best F1: 0.9776
+Epoch 15 | Dev Slot F1: 0.9802 | Intent Acc: 0.9859
+New best F1: 0.9802
+Epoch 20 | Dev Slot F1: 0.9814 | Intent Acc: 0.9859
+New best F1: 0.9814
+Epoch 25 | Dev Slot F1: 0.9805 | Intent Acc: 0.9880
+Epoch 30 | Dev Slot F1: 0.9808 | Intent Acc: 0.9859
+Epoch 35 | Dev Slot F1: 0.9746 | Intent Acc: 0.9859
+Early stopping triggered.
+	Training data saved to: models/Dropout_lr-0,001_hid-600_emb-900_batch-32_layers-2_drop-0,5/training_data.json
+	Development results saved to: models/Dropout_lr-0,001_hid-600_emb-900_batch-32_layers-2_drop-0,5/dev_data.json
+	Results saved to results/dev.csv
+	Saving model to bin/others/Dropout_lr-0,001_hid-600_emb-900_batch-32_layers-2_drop-0,5.pt:
+		 hid_size: 600 
+		 out_slot: 130 
+		 out_int: 26 
+		 emb_size: 900 
+		 vocab_len: 866 
+		 n_layer: 2 
+		 pad_index: 0 
+		 dropout: 0.5
+Training completed.

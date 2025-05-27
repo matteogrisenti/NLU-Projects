@@ -1,0 +1,24 @@
+Epoch 5 | Dev Slot F1: 0.8967 | Intent Acc: 0.9578
+New best F1: 0.8967
+Epoch 10 | Dev Slot F1: 0.9492 | Intent Acc: 0.9719
+New best F1: 0.9492
+Epoch 15 | Dev Slot F1: 0.9627 | Intent Acc: 0.9779
+New best F1: 0.9627
+Epoch 20 | Dev Slot F1: 0.9698 | Intent Acc: 0.9759
+New best F1: 0.9698
+Epoch 25 | Dev Slot F1: 0.9689 | Intent Acc: 0.9799
+Epoch 30 | Dev Slot F1: 0.9681 | Intent Acc: 0.9799
+Epoch 35 | Dev Slot F1: 0.9696 | Intent Acc: 0.9799
+Early stopping triggered.
+	Training data saved to: models\SimpleIAS_lr-0,001_hid-200_emb-300_batch-32_layers-1/training_data.json
+	Development results saved to: models\SimpleIAS_lr-0,001_hid-200_emb-300_batch-32_layers-1/dev_data.json
+	Results saved to results/dev.csv
+	Saving model to bin/others/SimpleIAS_lr-0,001_hid-200_emb-300_batch-32_layers-1.pt:
+		 hid_size: 200 
+		 out_slot: 130 
+		 out_int: 26 
+		 emb_size: 300 
+		 vocab_len: 866 
+		 n_layer: 1 
+		 pad_index: 0
+Training completed.
