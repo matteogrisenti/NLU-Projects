@@ -5,6 +5,7 @@ import os
 from collections import Counter
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 
 # Load JSON dataset from file
@@ -166,6 +167,18 @@ def get_slots_intents_lists():
 
     return list(data["slots"]), list(data["intents"])
 
+def get_slots_intents_lists_len():
+    """
+    Return the numebr of slots and intents
+    """
+    json_file = "dataset/slot_intent_lists.json"
+    with open(json_file, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    slots_list = list(data["slots"]), 
+    intents_list = list(data["intents"])
+
+    return len(slots_list), len(intents_list)
 
 
 
@@ -200,11 +213,12 @@ class AtisDataset(Dataset):
     - Ignores sub-token labels unless label_all_tokens is True.
     """
 
-    def __init__(self, records, tokenizer, slot_list, intent_list, max_length=50, label_all_tokens=False):
+    def __init__(self, records, tokenizer, slot_list, intent_list, pad_token, max_length=50, label_all_tokens=False):
         self.records = records
         self.tokenizer = tokenizer
         self.slot_list = slot_list
         self.intent_list = intent_list
+        self.pad_token = pad_token
         self.max_length = max_length
         self.label_all_tokens = label_all_tokens
 
@@ -239,7 +253,7 @@ class AtisDataset(Dataset):
             else:
                 # If label_all_tokens is False, assign the slot label only to the first sub-token, the rest are ignored
                 aligned_slot_labels.append(self.slot_list.index(slot))
-                aligned_slot_labels.extend([-100] * (len(word_pieces) - 1))
+                aligned_slot_labels.extend([self.pad_token] * (len(word_pieces) - 1))
 
         # Truncate if needed
         if len(sub_tokens) > self.max_length - 2:
@@ -248,7 +262,7 @@ class AtisDataset(Dataset):
 
         # Add special tokens: [CLS] and [SEP]
         sub_tokens = [self.tokenizer.cls_token] + sub_tokens + [self.tokenizer.sep_token]
-        aligned_slot_labels = [-100] + aligned_slot_labels + [-100]
+        aligned_slot_labels = [self.pad_token] + aligned_slot_labels + [self.pad_token]
 
         # Convert to input IDs and attention mask
         input_ids = self.tokenizer.convert_tokens_to_ids(sub_tokens)
@@ -259,7 +273,7 @@ class AtisDataset(Dataset):
             'input_ids': torch.tensor(input_ids, dtype=torch.long),
             'attention_mask': torch.tensor(attention_mask, dtype=torch.long),
             'slot_labels': torch.tensor(aligned_slot_labels, dtype=torch.long),
-            'intent_label': intent
+            'intent_label': torch.tensor(intent, dtype=torch.long)
         }
 
 def test_AtisDataset(dataset, records):
@@ -311,3 +325,37 @@ def collate_fn(batch, pad_token=0):
         'slot_labels': slot_padded,
         'intent_label': intent_labels
     }
+
+
+
+
+def get_train_dev_dataloader(tokenizer, batch_size, pad_token):
+    train_raw, dev_raw = get_train_dev_rawset()     # load raw datasets from json files
+
+    train_records = preprocess_raw(train_raw)       # split the words in the utterance and the slots
+    dev_records = preprocess_raw(dev_raw)           # split the words in the utterance and the slots
+
+    # Load the lists of slots and intents from the json file
+    slot_list, intent_list = get_slots_intents_lists()
+
+    train_dataset = AtisDataset(
+        records=train_records,
+        tokenizer=tokenizer,
+        slot_list=slot_list,
+        intent_list=intent_list,
+        pad_token=pad_token
+    )
+
+    dev_dataset = AtisDataset(
+        records = dev_records,
+        tokenizer = tokenizer,
+        slot_list=slot_list,
+        intent_list=intent_list,
+        pad_token=pad_token
+    )
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=lambda x: collate_fn(x, pad_token), shuffle=True)
+    dev_loader = DataLoader(dev_dataset, batch_size=int(batch_size/2), collate_fn=lambda x: collate_fn(x, pad_token))
+    print('\tTrain and Dev DataLoader initializated')
+    
+    return train_loader, dev_loader

@@ -1,19 +1,26 @@
 import os
+import torch.nn as nn
+
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"  # Used to report errors on CUDA side
 
 from transformers import BertTokenizer, BertModel
 from pprint import pprint
 
+from functions import model_name, train_model
+from model import BertIntentSlot
 from utils import (
     init_dataset,
-    get_train_dev_rawset,
-    preprocess_raw,
-    get_test_rawset,
-    get_slots_intents_lists,
-    AtisDataset,
-    test_AtisDataset
+    get_slots_intents_lists_len,
+    get_train_dev_dataloader,
 )
-    
+
+PAD_TOKEN = -100
+N_EPOCHES = 200
+PATIENTE = 3
+CLIP = 5
+DEVICE = 'cuda:0'
+
 tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")  # Download the tokenizer
 
 '''
@@ -24,24 +31,28 @@ on the model and not on the data split. This function also extract a global list
 from all the set ( train, dev and test ) and save it in a json file. 
 '''
 
-train_raw, dev_raw = get_train_dev_rawset()     # load raw datasets from json files
+len_slot_list, len_intent_list = get_slots_intents_lists_len()
 
-train_records = preprocess_raw(train_raw)       # split the words in the utterance and the slots
-dev_records = preprocess_raw(dev_raw)           # split the words in the utterance and the slots
+hyperparameters = {
+    'bert_type' : 'bert-base-uncased',
+    'learnin_rate': 0.001, 
+    'batch_size': 64, 
+    'dropout' : 0.1,
+    'num_slots_label': len_slot_list,
+    'num_intents_label': len_intent_list
+}
 
-# Load the lists of slots and intents from the json file
-slot_list, intent_list = get_slots_intents_lists()
+train_loader, dev_loader = get_train_dev_dataloader(tokenizer, hyperparameters['batch_size'], PAD_TOKEN)
 
-train_dataset = AtisDataset(
-    records=train_records,
-    tokenizer=tokenizer,
-    slot_list=slot_list,
-    intent_list=intent_list
-)
+name = model_name(hyperparameters['bert_type'], hyperparameters['learnin_rate'], 
+                  hyperparameters['batch_size'], hyperparameters['dropout']) 
 
+model = BertIntentSlot(hyperparameters['bert_type'], hyperparameters['num_intents_label'],
+                       hyperparameters['num_slots_label'], hyperparameters['dropout'])
+model.init_classification_heads()
 
-'''
-# test_AtisDataset(train_dataset, train_records)
-Uning during the development of this project to test the AtisDataset and if it correclty menage
-the sub-tokenisation. 
-'''
+criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_TOKEN)
+criterion_intents = nn.CrossEntropyLoss()
+
+model = train_model(model, train_loader, dev_loader, tokenizer, criterion_slots, criterion_intents, 
+                    N_EPOCHES, PATIENTE, CLIP, model_name=name, device=DEVICE, hyperparameters=hyperparameters)

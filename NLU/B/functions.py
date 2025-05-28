@@ -14,9 +14,20 @@ from pprint import pformat
 from conll import evaluate
 from sklearn.metrics import classification_report
 
+from utils import get_slots_intents_lists
 
 
-def model_name(label, lr, batch_size, dropout):
+
+def model_name(bert_type, lr, batch_size, dropout):
+
+     # Format bert type 
+    if bert_type == 'bert-base-uncased':
+        label = 'base'
+    elif bert_type == 'bert-large-uncased':
+        label = 'large'
+    else:
+        raise ValueError(f"Unknown BERT type: {bert_type}")
+    
     name = f"{label}_lr-{str(lr).replace('.', ',')}_batch-{batch_size}"
     if dropout is not None:
         name += f"_drop-{str(dropout).replace('.', ',')}"
@@ -56,11 +67,12 @@ def save_training(sampled_epochs, losses_train, losses_dev, name):
 
 
 
-def save_model(name, model, bert_type, num_intent_labels, num_slot_labels):
+def save_model(name, model, bert_type, dropout, num_intent_labels, num_slot_labels):
     path = 'bin/others/' + name + '.pt'
     saving_object = { 
         "model": model.state_dict(), 
         "bert_type": bert_type, 
+        "dropout": dropout,
         "num_intent_labels": num_intent_labels, 
         "num_slot_labels": num_slot_labels 
     }
@@ -113,7 +125,7 @@ def save_dev(bert_type, lr, batch_size, dropout, slot_f1, f1_ci_95, intent_accur
 
     # Define fieldnames for CSV header
     fieldnames = [
-        'Bert Type', 'Learning Rate', 'batch_size', 'dropout', 'slot_f1', '95% CI', 'intent_acc', '95% CI (beta)'
+        'Bert Type', 'Learning Rate', 'Batch Size', 'Dropout', 'Slot F1', '95% CI', 'Intent Acc', '95% CI (beta)'
     ]
 
     # Write to CSV
@@ -182,6 +194,27 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
         intent_labels = sample['intent_label'].to(device)
         slot_labels = sample['slot_labels'].to(device)
 
+        print("=== BATCH DEBUG START ===")
+        print("input_ids.shape:", input_ids.shape)
+        print("attention_mask.shape:", attention_mask.shape)
+        print("slot_labels.shape:", slot_labels.shape)
+        print("intent_labels.shape:", intent_labels.shape)
+
+        print("input_ids max:", torch.max(input_ids).item(), "min:", torch.min(input_ids).item())
+        print("slot_labels unique:", torch.unique(slot_labels))
+        print("intent_labels unique:", torch.unique(intent_labels))
+
+        print("Slot logits shape (before view):", slot_logits.shape if 'slot_logits' in locals() else "Not computed yet")
+
+        # Check for invalid slot_labels before computing loss
+        num_classes = model.classifier_slots.out_features if hasattr(model, 'classifier_slots') else 'unknown'
+        if torch.any(slot_labels < 0) or (isinstance(num_classes, int) and torch.any(slot_labels >= num_classes)):
+            print("[ERROR] Invalid slot label index detected!")
+            print("Max slot label:", torch.max(slot_labels))
+            print("Num slot classes:", num_classes)
+            raise ValueError("Invalid slot label index!")
+        print("=== BATCH DEBUG END ===")
+
         # Forward pass
         slot_logits, intent_logits = model(
             input_ids=input_ids,
@@ -190,9 +223,13 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
 
         # Compute intent loss
         loss_intent = criterion_intents(intent_logits, intent_labels)
+        
+        # Flatten logits and labels for slot filling
+        slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])          # [batch_size * seq_len, num_classes]
+        slot_labels_flat = slot_labels.view(-1)  
 
         # Compute slot loss
-        loss_slot = criterion_slots(slot_logits, slot_labels)
+        loss_slot = criterion_slots(slot_logits_flat, slot_labels_flat)
 
         # Total loss (equal weight)
         loss = loss_intent + loss_slot
@@ -337,3 +374,286 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, intent_list, 
     results['total']['sem'] = sem_f1
     
     return results, report_intent, loss_array
+
+
+
+
+def train_model(
+    model,
+    train_loader,
+    dev_loader,
+    tokenizer,
+    criterion_slots, 
+    criterion_intents,
+    n_epochs=200,
+    patience=3,
+    clip=5,
+    eval_every=5,
+    model_name="best_model",
+    device=None,
+    hyperparameters=None
+):
+    """
+    Trains a joint intent detection and slot filling model with early stopping.
+
+    Args:
+        model (nn.Module): The neural network model to train.
+        train_loader (DataLoader): DataLoader for training data.
+        dev_loader (DataLoader): DataLoader for validation data.
+        tokenizer: (BertTokenizer): Tokenizer used to convert text to token IDs. 
+        optimizer (torch.optim.Optimizer): Optimizer used for parameter updates.
+        criterion_slots (nn.CrossEntropyLoss): Loss function for slot filling.
+        criterion_intents (nn.CrossEntropyLoss): Loss function for intent classification.
+        n_epochs (int): Maximum number of epochs to train.
+        patience (int): Number of epochs without improvement before early stopping.
+        clip (float): Gradient norm clipping threshold.
+        eval_every (int): Frequency (in epochs) of evaluation on dev set.
+        model_name (str): Name of the model ( used to save it's performance ).
+        device (str or torch.device): Device to run the model on ('cuda', 'cpu', or None).
+                                     If None, uses CUDA if available.
+        hyperparameters (dict): Hyperparameters for the model (optional).
+
+    Returns:
+        best_model (nn.Module): The best saved model based on dev performance.
+    """
+    
+    # Set default device if not provided
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+
+    # Create logging file
+    save_dir = os.path.join('models', model_name)
+    os.makedirs(save_dir, exist_ok=True)
+    log_file = save_dir + "/training.txt"
+    print("\nTraining started...")
+    print(f"\tLogging training output to {log_file}")
+
+    # Redirect stdout to both console and file
+    class Logger:
+        def __init__(self, file):
+            self.file = file
+            self.stdout = sys.stdout
+            
+        def write(self, data):
+            self.stdout.write(data)
+            self.file.write(data)
+            
+        def flush(self):
+            self.stdout.flush()
+            self.file.flush()
+
+    # Open log file and redirect output
+    with open(log_file, 'w') as f:
+        sys.stdout = Logger(f)
+
+        try:
+            losses_train = []       # To store training losses
+            losses_dev = []         # To store dev losses
+            sampled_epochs = []     # To store epochs where dev loss was recorded
+            
+            best_model = None       # To store the best model
+            best_f1 = 0.0           # Initialize best F1 score
+            no_improvement = 0      # Counter for early stopping
+
+            dev_results = {}        # Development results of the best model
+
+            # Define the optimizer 
+            optimizer = optim.Adam(model.parameters(), lr=hyperparameters['learnin_rate'])
+
+            for epoch in tqdm(range(1, n_epochs + 1)):
+
+                # Training step
+                model.train()
+                loss = train_loop(train_loader, optimizer, criterion_slots, criterion_intents, model, device, clip=clip)
+                losses_train.append(np.mean(loss))
+
+                # Evaluation step
+                if epoch % eval_every == 0:
+                    sampled_epochs.append(epoch)
+
+                    model.eval()
+                    results_dev, intent_res, loss_dev = eval_loop(dev_loader, tokenizer, criterion_slots, criterion_intents, model, device)
+                    losses_dev.append(np.mean(loss_dev))
+
+                    current_f1 = results_dev['total']['f']
+                    print(f"Epoch {epoch} | Dev Slot F1: {current_f1:.4f} | Intent Acc: {intent_res['accuracy']:.4f}")
+
+                    # Save best model
+                    if current_f1 > best_f1:
+                        print(f"New best F1: {current_f1:.4f}")
+                        best_f1 = current_f1
+                        no_improvement = 0
+                        best_model = deepcopy(model)        # Save the best model
+                        dev_results = {
+                            "loss_dev": loss_dev,
+                            "results_dev": results_dev,
+                            "intent_res": intent_res
+                        }
+                    else:
+                        no_improvement += 1
+
+                    # Early stopping
+                    if no_improvement >= patience:
+                        print("Early stopping triggered.")
+                        break
+
+            save_training(sampled_epochs, losses_train, losses_dev, model_name)  # Save the training data in a JSON file
+            save_dev_results(dev_results, model_name)                            # Save the dev results in a JSON file
+            
+            # Save the dev results in a CSV file
+            save_dev(hyperparameters['bert_type'], hyperparameters['lr'], hyperparameters['batch_size'], 
+                     hyperparameters['dropout'], dev_results['results_dev']['total']['f'], dev_results['results_dev']['total']['f1_ci_95'],
+                     dev_results['intent_res']['accuracy'], dev_results['intent_res']['ci_95_beta'])  
+            
+            # Save best model
+            save_model(model_name, best_model, hyperparameters['bert_type'], hyperparameters['dropout'], hyperparameters['num_intents_label', hyperparameters['num_slots_label']])# Save the best model
+
+            print("Training completed.")
+
+        finally:
+            sys.stdout = sys.stdout.stdout   # Restore stdout
+
+    return best_model
+
+
+
+
+def save_test(bert_type, lr, batch_size, dropout, slot_f1, f1_ci_95, intent_accuracy, ci_95_beta):
+    """
+    Saves training/validation or test results along with hyperparameters to a CSV file.
+
+    Args:
+        bert_type (str): Type of BERT model used: 'bert-base-uncased' or 'bert-large-uncased'.
+        lr (float): Learning rate.
+        batch_size (int): Batch size used during training.
+        dropout (float): Dropout rate.
+        slot_f1: Slot F1 score.
+        f1_ci_95: 95% confidence interval for F1 score.
+        intent_accuracy: Intent accuracy.
+        ci_95_beta: 95% confidence interval for intent accuracy.
+    """
+    
+    # Create file if it doesn't exist, append otherwise
+    filename = 'results/test.csv'
+    file_exists = os.path.isfile(filename)
+
+    # Format bert type 
+    if bert_type == 'bert-base-uncased':
+        label = 'base'
+    elif bert_type == 'bert-large-uncased':
+        label = 'large'
+    else:
+        raise ValueError(f"Unknown BERT type: {bert_type}")
+
+    # Prepare data to write
+    data = {
+        'label': label,
+        'learning_rate': lr,
+        'batch_size': batch_size,
+        'dropout': dropout or 'None',
+        'slot_f1': round(slot_f1, 4),             # Slot F1 score rounded to 2 decimal places
+        '95% CI': f"{round(f1_ci_95[0], 4)} - {round(f1_ci_95[1], 4)}",  # 95% CI for F1 score
+        'intent_acc': round(intent_accuracy, 4),   # Intent accuracy rounded to 2 decimal places
+        '95% CI (beta)': f"{round(ci_95_beta[0], 4)} - {round(ci_95_beta[1], 4)}"  # 95% CI for intent accuracy
+    }
+
+    # Define fieldnames for CSV header
+    fieldnames = [
+        'Bert Type', 'Learning Rate', 'Batch Size', 'Dropout', 'Slot F1', '95% CI', 'Intent Acc', '95% CI (beta)'
+    ]
+
+    # Write to CSV
+    with open(filename, mode='a', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+
+        if not file_exists:
+            writer.writeheader()  # Write header only once
+
+        writer.writerow(data)  # Write the row with results and hyperparams
+
+    print(f"\tResults saved to {filename}")
+
+
+
+
+def save_test_results(results_test, intent_test, model_name):
+    """
+    Save test results in a nicely formatted way to JSON file.
+
+    Args:
+        results_test (dict): Slot filling results (F1 scores per tag)
+        intent_test (dict): Intent classification results (precision/recall/f1)
+        model_name (str): Name of the model for saving purposes
+    """
+    # Create directories if not exist
+    save_dir = os.path.join('models', model_name)
+    os.makedirs(save_dir, exist_ok=True)
+    file_path_json = save_dir + '/test_data.json'
+
+    slot_f1 = results_test['total']['f']
+    intent_acc = intent_test['accuracy']
+
+    full_results = {
+        "slot_results": results_test,
+        "intent_results": intent_test,
+        "metrics": {
+            "slot_f1": slot_f1,
+            "intent_accuracy": intent_acc
+        }
+    }
+
+    with open(file_path_json, 'w', encoding='utf-8') as fj:
+        json.dump(full_results, fj, indent=4, ensure_ascii=False)
+
+    print(f"\tResults saved to: {file_path_json}")
+
+
+
+
+def test_model(
+    model,
+    test_loader,
+    tokenizer,
+    criterion_slots,
+    criterion_intents,
+    model_name="best_model",
+    device=None,
+    hyperparameters=None
+):
+    """
+    Loads the best model and evaluates it on the test dataset.
+
+    Args:
+        model (nn.Module): Model architecture (untrained/unloaded).
+        test_loader (DataLoader): DataLoader for test data.
+        tokenizer: (BertTokenizer): Tokenizer used to convert text to token IDs.
+        criterion_slots (nn.CrossEntropyLoss): Loss function for slots.
+        criterion_intents (nn.CrossEntropyLoss): Loss function for intents.
+        lang (object): Language object containing label mappings.
+        model_name (str): name of the best model was saved.
+        device (str or torch.device): Device to run the model on ('cuda', 'cpu', or None).
+                                      If None, uses CUDA if available.
+        hyperparameters (dict): Hyperparameters for the model (optional).
+
+    Returns:
+        results_test (dict): Dictionary with test slot metrics.
+        intent_test (dict): Classification report for intents.
+    """
+
+    # Set default device if not provided
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    results_test, intent_test, _ = eval_loop(test_loader, tokenizer, criterion_slots, criterion_intents, model)
+
+    save_test_results(results_test, intent_test, model_name)
+    # Save the dev results in a CSV file
+    save_test(hyperparameters['batch_type'], hyperparameters['lr'], hyperparameters['batch_size'], 
+              hyperparameters['dropout'], results_test['total']['f'], results_test['total']['f1_ci_95'],
+              intent_test['accuracy'], intent_test['ci_95_beta'])  
+    
+    print('Slot F1:', results_test['total']['f'])
+    print('Intent Accuracy:', intent_test['accuracy'])
+
+    return results_test, intent_test
