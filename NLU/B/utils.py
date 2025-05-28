@@ -175,7 +175,7 @@ def get_slots_intents_lists_len():
     with open(json_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
-    slots_list = list(data["slots"]), 
+    slots_list = list(data["slots"]) 
     intents_list = list(data["intents"])
 
     return len(slots_list), len(intents_list)
@@ -213,12 +213,11 @@ class AtisDataset(Dataset):
     - Ignores sub-token labels unless label_all_tokens is True.
     """
 
-    def __init__(self, records, tokenizer, slot_list, intent_list, pad_token, max_length=50, label_all_tokens=False):
+    def __init__(self, records, tokenizer, slot_list, intent_list, max_length=50, label_all_tokens=False):
         self.records = records
         self.tokenizer = tokenizer
         self.slot_list = slot_list
         self.intent_list = intent_list
-        self.pad_token = pad_token
         self.max_length = max_length
         self.label_all_tokens = label_all_tokens
 
@@ -237,6 +236,13 @@ class AtisDataset(Dataset):
 
         # Tokenize each word and align slot labels
         for word, slot in zip(words, slots):
+
+            if slot not in self.slot_list:
+                print(f"[ERROR] Slot label '{slot}' not in slot_list!")
+                print("Available slot labels:", self.slot_list)
+                raise ValueError(f"Slot '{slot}' non valido.")
+
+
             # Tokenize the word using the tokenizer
             word_pieces = self.tokenizer.tokenize(word)
 
@@ -253,7 +259,7 @@ class AtisDataset(Dataset):
             else:
                 # If label_all_tokens is False, assign the slot label only to the first sub-token, the rest are ignored
                 aligned_slot_labels.append(self.slot_list.index(slot))
-                aligned_slot_labels.extend([self.pad_token] * (len(word_pieces) - 1))
+                aligned_slot_labels.extend([-100] * (len(word_pieces) - 1))
 
         # Truncate if needed
         if len(sub_tokens) > self.max_length - 2:
@@ -262,7 +268,7 @@ class AtisDataset(Dataset):
 
         # Add special tokens: [CLS] and [SEP]
         sub_tokens = [self.tokenizer.cls_token] + sub_tokens + [self.tokenizer.sep_token]
-        aligned_slot_labels = [self.pad_token] + aligned_slot_labels + [self.pad_token]
+        aligned_slot_labels = [-100] + aligned_slot_labels + [-100]
 
         # Convert to input IDs and attention mask
         input_ids = self.tokenizer.convert_tokens_to_ids(sub_tokens)
@@ -343,7 +349,6 @@ def get_train_dev_dataloader(tokenizer, batch_size, pad_token):
         tokenizer=tokenizer,
         slot_list=slot_list,
         intent_list=intent_list,
-        pad_token=pad_token
     )
 
     dev_dataset = AtisDataset(
@@ -351,7 +356,6 @@ def get_train_dev_dataloader(tokenizer, batch_size, pad_token):
         tokenizer = tokenizer,
         slot_list=slot_list,
         intent_list=intent_list,
-        pad_token=pad_token
     )
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=lambda x: collate_fn(x, pad_token), shuffle=True)

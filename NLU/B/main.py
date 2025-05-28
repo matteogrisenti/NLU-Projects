@@ -15,7 +15,7 @@ from utils import (
     get_train_dev_dataloader,
 )
 
-PAD_TOKEN = -100
+PAD_TOKEN = 0
 N_EPOCHES = 200
 PATIENTE = 3
 CLIP = 5
@@ -51,7 +51,7 @@ model = BertIntentSlot(hyperparameters['bert_type'], hyperparameters['num_intent
                        hyperparameters['num_slots_label'], hyperparameters['dropout'])
 model.init_classification_heads()
 
-criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_TOKEN)
+criterion_slots = nn.CrossEntropyLoss(ignore_index=-100)
 criterion_intents = nn.CrossEntropyLoss()
 
 model = train_model(model, train_loader, dev_loader, tokenizer, criterion_slots, criterion_intents, 

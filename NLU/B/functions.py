@@ -184,36 +184,24 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
     model.train()       # Set model to training mode 
     loss_array = []     # To store loss values for each batch
 
+    count_batch = 0; 
+
     # Iterate over each batch in the training data
-    for sample in data:
+    for batch in data:
+        count_batch=count_batch+1
         optimizer.zero_grad() # Clear previous gradients
 
         # Move tensors to device
-        input_ids = sample['input_ids'].to(device)
-        attention_mask = sample['attention_mask'].to(device)
-        intent_labels = sample['intent_label'].to(device)
-        slot_labels = sample['slot_labels'].to(device)
+        input_ids = batch['input_ids'].to(device)
+        attention_mask = batch['attention_mask'].to(device)
+        intent_labels = batch['intent_label'].to(device)
+        slot_labels = batch['slot_labels'].to(device)
 
-        print("=== BATCH DEBUG START ===")
+        print(f"=== BATCH {count_batch} DEBUG START ===")
         print("input_ids.shape:", input_ids.shape)
         print("attention_mask.shape:", attention_mask.shape)
         print("slot_labels.shape:", slot_labels.shape)
         print("intent_labels.shape:", intent_labels.shape)
-
-        print("input_ids max:", torch.max(input_ids).item(), "min:", torch.min(input_ids).item())
-        print("slot_labels unique:", torch.unique(slot_labels))
-        print("intent_labels unique:", torch.unique(intent_labels))
-
-        print("Slot logits shape (before view):", slot_logits.shape if 'slot_logits' in locals() else "Not computed yet")
-
-        # Check for invalid slot_labels before computing loss
-        num_classes = model.classifier_slots.out_features if hasattr(model, 'classifier_slots') else 'unknown'
-        if torch.any(slot_labels < 0) or (isinstance(num_classes, int) and torch.any(slot_labels >= num_classes)):
-            print("[ERROR] Invalid slot label index detected!")
-            print("Max slot label:", torch.max(slot_labels))
-            print("Num slot classes:", num_classes)
-            raise ValueError("Invalid slot label index!")
-        print("=== BATCH DEBUG END ===")
 
         # Forward pass
         slot_logits, intent_logits = model(
@@ -223,13 +211,15 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
 
         # Compute intent loss
         loss_intent = criterion_intents(intent_logits, intent_labels)
+        print("loss intent: ", loss_intent)
         
         # Flatten logits and labels for slot filling
         slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])          # [batch_size * seq_len, num_classes]
         slot_labels_flat = slot_labels.view(-1)  
-
+        
         # Compute slot loss
         loss_slot = criterion_slots(slot_logits_flat, slot_labels_flat)
+        print("loss slot: ", loss_slot)
 
         # Total loss (equal weight)
         loss = loss_intent + loss_slot
@@ -248,6 +238,8 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
 
         # Update model parameters using the optimizer
         optimizer.step() 
+
+        print("=== BATCH DEBUG END ===")
 
     return loss_array
 
