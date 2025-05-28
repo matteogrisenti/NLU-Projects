@@ -184,11 +184,11 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
     model.train()       # Set model to training mode 
     loss_array = []     # To store loss values for each batch
 
-    count_batch = 0; 
+    #[DEBUG] count_batch = 0; 
 
     # Iterate over each batch in the training data
     for batch in data:
-        count_batch=count_batch+1
+        #[DEBUG] count_batch=count_batch+1
         optimizer.zero_grad() # Clear previous gradients
 
         # Move tensors to device
@@ -197,11 +197,11 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
         intent_labels = batch['intent_label'].to(device)
         slot_labels = batch['slot_labels'].to(device)
 
-        print(f"=== BATCH {count_batch} DEBUG START ===")
-        print("input_ids.shape:", input_ids.shape)
-        print("attention_mask.shape:", attention_mask.shape)
-        print("slot_labels.shape:", slot_labels.shape)
-        print("intent_labels.shape:", intent_labels.shape)
+        #[DEBUG] print(f"=== BATCH {count_batch} DEBUG START ===")
+        #[DEBUG] print("input_ids.shape:", input_ids.shape)
+        #[DEBUG] print("attention_mask.shape:", attention_mask.shape)
+        #[DEBUG] print("slot_labels.shape:", slot_labels.shape)
+        #[DEBUG] print("intent_labels.shape:", intent_labels.shape)
 
         # Forward pass
         slot_logits, intent_logits = model(
@@ -211,7 +211,7 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
 
         # Compute intent loss
         loss_intent = criterion_intents(intent_logits, intent_labels)
-        print("loss intent: ", loss_intent)
+        #[DEBUG] print("loss intent: ", loss_intent)
         
         # Flatten logits and labels for slot filling
         slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])          # [batch_size * seq_len, num_classes]
@@ -219,7 +219,7 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
         
         # Compute slot loss
         loss_slot = criterion_slots(slot_logits_flat, slot_labels_flat)
-        print("loss slot: ", loss_slot)
+        #[DEBUG] print("loss slot: ", loss_slot)
 
         # Total loss (equal weight)
         loss = loss_intent + loss_slot
@@ -239,14 +239,14 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
         # Update model parameters using the optimizer
         optimizer.step() 
 
-        print("=== BATCH DEBUG END ===")
+        #[DEBUG] print("=== BATCH DEBUG END ===")
 
     return loss_array
 
 
 
 
-def eval_loop(data, tokenizer, criterion_slots, criterion_intents, intent_list, slot_list, model, device):
+def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device):
     """
     Evaluation loop over the dataset. Computes loss and metrics for intent classification
     and slot filling tasks.
@@ -256,8 +256,6 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, intent_list, 
         tokenizer: (BertTokenizer): Tokenizer used to convert text to token IDs.
         criterion_slots (nn.CrossEntropyLoss): Loss function for slot filling.
         criterion_intents (nn.CrossEntropyLoss): Loss function for intent detection.
-        intent_list (list): List of intent labels.
-        slot_list (list): List of slot labels.
         model (nn.Module): The neural network model in evaluation mode.
         device (torch.device): CPU or CUDA device.
 
@@ -276,6 +274,8 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, intent_list, 
     ref_slots = []      # Ground truth slot labels
     hyp_slots = []      # Predicted slot labels
 
+    slot_list, intent_list = get_slots_intents_lists()
+
     with torch.no_grad(): # It used to avoid the creation of computational graph
         for sample in data:
             # Move inputs to device
@@ -290,9 +290,12 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, intent_list, 
                 attention_mask=attention_mask
             )
 
+            slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])          # [batch_size * seq_len, num_classes]
+            slot_labels_flat = slot_labels.view(-1)  
+
             # Compute losses
             loss_intent = criterion_intents(intent_logits, intent_labels)   # Compute intent loss
-            loss_slot = criterion_slots(slot_logits, slot_labels)           # Compute slot loss
+            loss_slot = criterion_slots(slot_logits_flat, slot_labels_flat)           # Compute slot loss
             loss = loss_intent + loss_slot                                  # Total loss (equal weight)
             loss_array.append(loss.item()) 
 
@@ -377,10 +380,9 @@ def train_model(
     tokenizer,
     criterion_slots, 
     criterion_intents,
-    n_epochs=200,
+    n_epochs=40,
     patience=3,
     clip=5,
-    eval_every=5,
     model_name="best_model",
     device=None,
     hyperparameters=None
@@ -399,7 +401,6 @@ def train_model(
         n_epochs (int): Maximum number of epochs to train.
         patience (int): Number of epochs without improvement before early stopping.
         clip (float): Gradient norm clipping threshold.
-        eval_every (int): Frequency (in epochs) of evaluation on dev set.
         model_name (str): Name of the model ( used to save it's performance ).
         device (str or torch.device): Device to run the model on ('cuda', 'cpu', or None).
                                      If None, uses CUDA if available.
@@ -451,7 +452,7 @@ def train_model(
             dev_results = {}        # Development results of the best model
 
             # Define the optimizer 
-            optimizer = optim.Adam(model.parameters(), lr=hyperparameters['learnin_rate'])
+            optimizer = optim.Adam(model.parameters(), lr=hyperparameters['learning_rate'])
 
             for epoch in tqdm(range(1, n_epochs + 1)):
 
@@ -461,40 +462,39 @@ def train_model(
                 losses_train.append(np.mean(loss))
 
                 # Evaluation step
-                if epoch % eval_every == 0:
-                    sampled_epochs.append(epoch)
+                sampled_epochs.append(epoch)
 
-                    model.eval()
-                    results_dev, intent_res, loss_dev = eval_loop(dev_loader, tokenizer, criterion_slots, criterion_intents, model, device)
-                    losses_dev.append(np.mean(loss_dev))
+                model.eval()
+                results_dev, intent_res, loss_dev = eval_loop(dev_loader, tokenizer, criterion_slots, criterion_intents, model, device)
+                losses_dev.append(np.mean(loss_dev))
 
-                    current_f1 = results_dev['total']['f']
-                    print(f"Epoch {epoch} | Dev Slot F1: {current_f1:.4f} | Intent Acc: {intent_res['accuracy']:.4f}")
+                current_f1 = results_dev['total']['f']
+                print(f"Epoch {epoch} | Dev Slot F1: {current_f1:.4f} | Intent Acc: {intent_res['accuracy']:.4f}")
 
-                    # Save best model
-                    if current_f1 > best_f1:
-                        print(f"New best F1: {current_f1:.4f}")
-                        best_f1 = current_f1
-                        no_improvement = 0
-                        best_model = deepcopy(model)        # Save the best model
-                        dev_results = {
-                            "loss_dev": loss_dev,
-                            "results_dev": results_dev,
-                            "intent_res": intent_res
-                        }
-                    else:
-                        no_improvement += 1
+                # Save best model
+                if current_f1 > best_f1:
+                    print(f"New best F1: {current_f1:.4f}")
+                    best_f1 = current_f1
+                    no_improvement = 0
+                    best_model = deepcopy(model)        # Save the best model
+                    dev_results = {
+                        "loss_dev": loss_dev,
+                        "results_dev": results_dev,
+                        "intent_res": intent_res
+                    }
+                else:
+                    no_improvement += 1
 
-                    # Early stopping
-                    if no_improvement >= patience:
-                        print("Early stopping triggered.")
-                        break
+                # Early stopping
+                if no_improvement >= patience:
+                    print("Early stopping triggered.")
+                    break
 
             save_training(sampled_epochs, losses_train, losses_dev, model_name)  # Save the training data in a JSON file
             save_dev_results(dev_results, model_name)                            # Save the dev results in a JSON file
             
             # Save the dev results in a CSV file
-            save_dev(hyperparameters['bert_type'], hyperparameters['lr'], hyperparameters['batch_size'], 
+            save_dev(hyperparameters['bert_type'], hyperparameters['lerning_rate'], hyperparameters['batch_size'], 
                      hyperparameters['dropout'], dev_results['results_dev']['total']['f'], dev_results['results_dev']['total']['f1_ci_95'],
                      dev_results['intent_res']['accuracy'], dev_results['intent_res']['ci_95_beta'])  
             

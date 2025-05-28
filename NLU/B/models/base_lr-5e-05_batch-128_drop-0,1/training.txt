@@ -1,0 +1,6 @@
+Epoch 1 | Dev Slot F1: 0.5911 | Intent Acc: 0.8956
+New best F1: 0.5911
+Epoch 2 | Dev Slot F1: 0.6746 | Intent Acc: 0.9719
+New best F1: 0.6746
+Epoch 3 | Dev Slot F1: 0.6967 | Intent Acc: 0.9880
+New best F1: 0.6967

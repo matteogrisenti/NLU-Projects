@@ -16,7 +16,7 @@ from utils import (
 )
 
 PAD_TOKEN = 0
-N_EPOCHES = 200
+N_EPOCHES = 40
 PATIENTE = 3
 CLIP = 5
 DEVICE = 'cuda:0'
@@ -35,8 +35,8 @@ len_slot_list, len_intent_list = get_slots_intents_lists_len()
 
 hyperparameters = {
     'bert_type' : 'bert-base-uncased',
-    'learnin_rate': 0.001, 
-    'batch_size': 64, 
+    'learning_rate': 0.00005, 
+    'batch_size': 128, 
     'dropout' : 0.1,
     'num_slots_label': len_slot_list,
     'num_intents_label': len_intent_list
@@ -44,7 +44,7 @@ hyperparameters = {
 
 train_loader, dev_loader = get_train_dev_dataloader(tokenizer, hyperparameters['batch_size'], PAD_TOKEN)
 
-name = model_name(hyperparameters['bert_type'], hyperparameters['learnin_rate'], 
+name = model_name(hyperparameters['bert_type'], hyperparameters['learning_rate'], 
                   hyperparameters['batch_size'], hyperparameters['dropout']) 
 
 model = BertIntentSlot(hyperparameters['bert_type'], hyperparameters['num_intents_label'],
