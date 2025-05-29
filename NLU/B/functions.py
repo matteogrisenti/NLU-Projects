@@ -14,7 +14,7 @@ from pprint import pformat
 from conll import evaluate
 from sklearn.metrics import classification_report
 
-from utils import get_slots_intents_lists
+from utils import Lang
 
 
 
@@ -194,7 +194,7 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
         # Move tensors to device
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
-        intent_labels = batch['intent_label'].to(device)
+        intent_labels = batch['intent_labels'].to(device)
         slot_labels = batch['slot_labels'].to(device)
 
         #[DEBUG] print(f"=== BATCH {count_batch} DEBUG START ===")
@@ -253,7 +253,7 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
 
     Args:
         data (DataLoader): DataLoader object that yields batches of samples.
-        tokenizer: (BertTokenizer): Tokenizer used to convert text to token IDs.
+        tokenizer (BertTokenizer): Tokenizer used to convert text to token IDs.
         criterion_slots (nn.CrossEntropyLoss): Loss function for slot filling.
         criterion_intents (nn.CrossEntropyLoss): Loss function for intent detection.
         model (nn.Module): The neural network model in evaluation mode.
@@ -274,14 +274,18 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
     ref_slots = []      # Ground truth slot labels
     hyp_slots = []      # Predicted slot labels
 
-    slot_list, intent_list = get_slots_intents_lists()
+    lang = Lang.load_from_file()  # Load vocabularies
 
-    with torch.no_grad(): # It used to avoid the creation of computational graph
+    # Get mapping from ID to label
+    intent_id2label = lang.id2intent
+    slot_id2label = lang.id2slot
+
+    with torch.no_grad():  # Disable gradient computation
         for sample in data:
             # Move inputs to device
             input_ids = sample['input_ids'].to(device)
             attention_mask = sample['attention_mask'].to(device)
-            intent_labels = sample['intent_label'].to(device)
+            intent_labels = sample['intent_labels'].to(device)
             slot_labels = sample['slot_labels'].to(device)
 
             # Forward pass
@@ -290,74 +294,83 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
                 attention_mask=attention_mask
             )
 
-            slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])          # [batch_size * seq_len, num_classes]
-            slot_labels_flat = slot_labels.view(-1)  
+            # Flatten logits and labels for loss calculation
+            slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])  # [batch_size * seq_len, num_classes]
+            slot_labels_flat = slot_labels.view(-1)                          # [batch_size * seq_len]
 
             # Compute losses
-            loss_intent = criterion_intents(intent_logits, intent_labels)   # Compute intent loss
-            loss_slot = criterion_slots(slot_logits_flat, slot_labels_flat)           # Compute slot loss
-            loss = loss_intent + loss_slot                                  # Total loss (equal weight)
-            loss_array.append(loss.item()) 
+            loss_intent = criterion_intents(intent_logits, intent_labels)
+            loss_slot = criterion_slots(slot_logits_flat, slot_labels_flat)
+            loss = loss_intent + loss_slot
+            loss_array.append(loss.item())
 
+            # --- Intent predictions ---
+            pred_intents = torch.argmax(intent_logits, dim=1).cpu().tolist()
+            gold_intents = intent_labels.cpu().tolist()
 
-            # --- Intent evaluation ---
-            pred_intents = torch.argmax(intent_logits, dim=1).tolist()      # Take argmax over intent logits
-            gold_intents = intent_labels.tolist()                           # Ground truth intent labels
-            hyp_intents.extend([intent_list[i] for i in pred_intents])      # Convert predicted IDs to labels
-            ref_intents.extend([intent_list[i] for i in gold_intents])      # Convert ground truth IDs to labels
+            # Convert IDs to labels
+            hyp_intents.extend([intent_id2label[i] for i in pred_intents])
+            ref_intents.extend([intent_id2label[i] for i in gold_intents])
 
+            # --- Slot predictions ---
+            pred_slots = torch.argmax(slot_logits, dim=1)  
 
-            # --- Slot evaluation ---
-            pred_slots = torch.argmax(slot_logits, dim=2)    # Shape: (batch, seq_len)
+            # For each sequence in the batch
+            pred_slots = torch.argmax(slot_logits, dim=2)  # Shape: (batch_size, seq_len)
+
             for i in range(len(input_ids)):
-                seq_len = (attention_mask[i] == 1).sum().item()  # number of real tokens
+                # Get actual sequence length using attention_mask
+                length = attention_mask[i].sum().item()
 
-                input_tokens = input_ids[i][:seq_len].tolist()
-                pred_slot_ids = pred_slots[i][:seq_len].tolist()
-                true_slot_ids = slot_labels[i][:seq_len].tolist()
+                # Extract input tokens and predictions
+                input_ids_i = input_ids[i][:length].cpu().tolist()
+                pred_slot_ids_i = pred_slots[i][:length].cpu().tolist()
+                true_slot_ids_i = slot_labels[i][:length].cpu().tolist()
 
                 # Convert input token IDs to words
-                words = tokenizer.convert_ids_to_tokens(input_tokens)
+                words = tokenizer.convert_ids_to_tokens(input_ids_i)
 
-                # Convert gold and predicted slot IDs to labels
-                gold_slots = [slot_list[sid] for sid in true_slot_ids]
-                pred_slots_labels = [slot_list[sid] for sid in pred_slot_ids]
+                # Map slot IDs to labels
+                gold_slots = [slot_id2label[sid] for sid in true_slot_ids_i]
+                pred_slots_labels = [slot_id2label[sid] for sid in pred_slot_ids_i]
 
-                # Add to references and hypotheses
+                print(f"Words: { words }")
+                print(f"Gold Slots: { gold_slots } ")
+                print(f"Pred Slots: { pred_slots_labels } ")
+
+                # Append zipped (word, label) pairs
                 ref_slots.append(list(zip(words, gold_slots)))
                 hyp_slots.append(list(zip(words, pred_slots_labels)))
-    try:  
-        # Evaluate slot filling using a custom evaluate function 
-        results = evaluate(ref_slots, hyp_slots)
 
+    try:
+        # Evaluate slot filling using a custom evaluate function
+        results = evaluate(ref_slots, hyp_slots)
     except Exception as ex:
         # Handle cases where the model predicts unseen/invalid slot labels
         print("Warning:", ex)
         ref_s = set([x[1] for x in ref_slots])
         hyp_s = set([x[1] for x in hyp_slots])
         print(hyp_s.difference(ref_s))
-        results = {"total":{"f":0}}     # Default if evaluation fails
-    
+        results = {"total": {"f": 0, "s": 0}}  # Default if evaluation fails
+
     # Generate classification report for intents
     report_intent = classification_report(
-        ref_intents, 
-        hyp_intents, 
-        zero_division=False, 
+        ref_intents,
+        hyp_intents,
+        zero_division=False,
         output_dict=True
     )
 
-
-    # Calculate beta 95 confidence interval for intent accuracy 
+    # Beta confidence interval for intent accuracy
     correct = sum(r == h for r, h in zip(ref_intents, hyp_intents))
     total = len(ref_intents)
-
     ci_beta_low, ci_beta_high = st.beta.interval(0.95, correct + 1, total - correct + 1)
     report_intent['ci_95_beta'] = (ci_beta_low, ci_beta_high)
 
-
-    # Calculate the sem and 95 confidence interval for slot F1 score
+    # Calculate standard error and 95% CI for slot F1 score
     slot_f1 = results['total']['f']
-    n_slots = results['total']['s']
+    n_slots = results['total'].get('s', 0)
+
     if n_slots > 0:
         sem_f1 = (slot_f1 * (1 - slot_f1) / n_slots) ** 0.5
         ci_f1_low, ci_f1_high = st.norm.interval(0.95, loc=slot_f1, scale=sem_f1)
@@ -367,7 +380,7 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
 
     results['total']['f1_ci_95'] = (ci_f1_low, ci_f1_high)
     results['total']['sem'] = sem_f1
-    
+
     return results, report_intent, loss_array
 
 
@@ -494,7 +507,7 @@ def train_model(
             save_dev_results(dev_results, model_name)                            # Save the dev results in a JSON file
             
             # Save the dev results in a CSV file
-            save_dev(hyperparameters['bert_type'], hyperparameters['lerning_rate'], hyperparameters['batch_size'], 
+            save_dev(hyperparameters['bert_type'], hyperparameters['learning_rate'], hyperparameters['batch_size'], 
                      hyperparameters['dropout'], dev_results['results_dev']['total']['f'], dev_results['results_dev']['total']['f1_ci_95'],
                      dev_results['intent_res']['accuracy'], dev_results['intent_res']['ci_95_beta'])  
             

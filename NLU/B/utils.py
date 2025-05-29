@@ -79,12 +79,12 @@ def get_train_dev_rawset():
     Returns:
         tuple: train_raw, dev_raw
     """
-    print("Loading split datasets...")
+    print("\tLoading split datasets...")
     train_path = os.path.join('dataset', 'train_split.json')
     dev_path = os.path.join('dataset', 'dev_split.json')
 
     if not os.path.exists(train_path) or not os.path.exists(dev_path):
-        raise FileNotFoundError("Split files not found. Run extract_dev_set() first.")
+        raise FileNotFoundError("\tSplit files not found. Run extract_dev_set() first.")
 
     train_raw = load_data(train_path)
     dev_raw = load_data(dev_path)
@@ -104,7 +104,7 @@ def get_test_rawset():
     Returns:
         tuple: test_raw
     """
-    print("Loading split datasets...")
+    print("\tLoading split datasets...")
     test_path = os.path.join('dataset', 'test.json')
     
     if not os.path.exists(test_path):
@@ -134,55 +134,108 @@ def preprocess_raw(raw_data):
     ]
 
 
-
-
-def post_slots_intents_lists(slots, intents):
-    """
-    Save slot and intent label lists to a JSON file.
-
-    Args:
-        slots (list): List of slot label strings (e.g., ["O", "B-fromloc", ...])
-        intents (list): List of intent label strings (e.g., ["flight", "hotel", ...])
-    """
-    data = {
-        "slots": list(slots),     # convert set to list
-        "intents": list(intents)  # convert set to list
-    }
-
-    json_file = "dataset/slot_intent_lists.json"
-    with open(json_file, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2)
-    print(f"Vocab JSON saved to {json_file}")
-
 def get_slots_intents_lists():
-    """
-    Load slot and intent label lists from a JSON file.
+    return None
 
-    Returns:
-        tuple: (slots, intents), both as lists of strings
-    """
-    json_file = "dataset/slot_intent_lists.json"
-    with open(json_file, 'r', encoding='utf-8') as f:
+
+class Lang():
+    def __init__(self, intents, slots, tokenizer, slots_pad_token):
+        self.words_pad_token = tokenizer.pad_token 
+        self.words_pad_token_id = tokenizer.pad_token_id
+        self.slots_pad_token_id = slots_pad_token
+        
+        # Build vocabularies
+        self.slot2id = self.lab2id(slots, pad=True)
+        self.intent2id = self.lab2id(intents)
+
+        # Reverse mappings
+        self.id2slot = {v:k for k, v in self.slot2id.items()}
+        self.id2intent = {v:k for k, v in self.intent2id.items()}
+
+        # Save also the number of slots and intents
+        self.len_slots = len(self.slot2id)
+        self.len_intents = len(self.intent2id)
+
+        # Save the Lang in Json file
+        self.save_json()
+
+    def lab2id(self, elements, pad=False):
+        vocab = {}
+        if pad:
+            vocab['pad'] = self.slots_pad_token_id  # Ensure consistent padding ID
+        for label in sorted(set(elements)):     # Sort for consistency
+            vocab[label] = len(vocab)
+        return vocab
+
+    def to_dict(self):
+        return {
+            'words_pad_token': self.words_pad_token,
+            'words_pad_token_id': self.words_pad_token_id,
+            'slots_pad_token_id': self.slots_pad_token_id,
+
+            'intent2id': self.intent2id,
+            'id2intent': self.id2intent,
+
+            'slot2id': self.slot2id,
+            'id2slot': self.id2slot,
+
+            'len_slots': self.len_slots,
+            'len_intents': self.len_intents
+        }
+    
+    @classmethod
+    def from_dict(cls, data):
+        obj = cls.__new__(cls)  # create instance without calling __init__
+
+        obj.words_pad_token = data.get('words_pad_token')
+        obj.words_pad_token_id = data.get('words_pad_token_id')
+        obj.slots_pad_token_id = data.get('slots_pad_token_id')
+
+        obj.intent2id = data.get('intent2id')
+        obj.id2intent = {int(k): v for k, v in data.get('id2intent', {}).items()}
+
+        obj.slot2id = data.get('slot2id')
+        obj.id2slot = {int(k): v for k, v in data.get('id2slot', {}).items()}
+
+        obj.len_slots = data.get('len_slots') 
+        obj.len_intents = data.get('len_intents')
+
+        return obj
+
+    @classmethod
+    def load_from_file(cls, json_path="dataset/lang.json"):
+        """Load Lang object directly from JSON file"""
+        if not os.path.exists(json_path):
+            raise FileNotFoundError(f"Language file not found at {json_path}")
+        
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        return cls.from_dict(data)
+
+    def save_json(self, json_file="dataset/lang.json"):
+        """Save vocabularies as JSON for later loading"""
+        os.makedirs(os.path.dirname(json_file), exist_ok=True)
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(self.to_dict(), f, indent=2)
+        print(f"\tVocab JSON saved to {json_file}")
+
+
+
+def get_slots_intents_len(json_path="dataset/lang.json"):
+    """Returns the number of slots and intents from the lang.json file."""
+    if not os.path.exists(json_path):
+        raise FileNotFoundError(f"Language file not found at {json_path}")
+    
+    with open(json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
-
-    return list(data["slots"]), list(data["intents"])
-
-def get_slots_intents_lists_len():
-    """
-    Return the numebr of slots and intents
-    """
-    json_file = "dataset/slot_intent_lists.json"
-    with open(json_file, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-
-    slots_list = list(data["slots"]) 
-    intents_list = list(data["intents"])
-
-    return len(slots_list), len(intents_list)
+    
+    return data.get('len_slots'), data.get('len_intents')
 
 
 
-def init_dataset():
+
+def init_dataset(tokenizer, slots_pad_token):
     """
     Initializes the dataset:
     - Splits the original dataset into train/dev
@@ -201,165 +254,151 @@ def init_dataset():
     slots = set(sum([line['slots'].split() for line in corpus],[]))   # set of all the slots
     intents = set([line['intent'] for line in corpus])                # set of all the intents
 
-    post_slots_intents_lists(slots, intents)        # save the list in a json file, so they are always reacable 
+    lang = Lang(intents, slots, tokenizer, slots_pad_token )
     print('Dataset initialized correctly')
+
 
 
 
 class AtisDataset(Dataset):
     """
-    PyTorch Dataset for ATIS using a tokenizer.
-    - Manually tokenizes each word and aligns slot labels.
-    - Ignores sub-token labels unless label_all_tokens is True.
+    PyTorch Dataset for the ATIS task using a BERT tokenizer.
+    Handles sub-token alignment for slot labels. Truncates if sequence > max_length.
+    Padding is deferred to collate_fn for dynamic batching.
     """
 
-    def __init__(self, records, tokenizer, slot_list, intent_list, max_length=50, label_all_tokens=False):
-        self.records = records
+    def __init__(self, records, tokenizer, max_length=50, label_all_tokens=False):
         self.tokenizer = tokenizer
-        self.slot_list = slot_list
-        self.intent_list = intent_list
         self.max_length = max_length
         self.label_all_tokens = label_all_tokens
 
+        # Load lang object automatically from JSON
+        self.lang = Lang.load_from_file()
+
+        # Initialize lists to store processed data
+        self.inputs = []
+        self.attention_masks = []
+        self.token_type_ids = []
+        self.slot_labels = []
+        self.slot_label_masks = []
+        self.intent_labels = []
+
+        self._preprocess(records)
+
+    def _preprocess(self, records):
+        for item in records:
+            words = item['utterance'].split()
+            slots = item['slots'].split()
+            intent = item['intent']
+
+            tokens = []
+            slot_label_ids = []
+            slot_mask = []
+
+            for word, slot_label in zip(words, slots):
+                word_tokens = self.tokenizer.tokenize(word)
+                if not word_tokens:
+                    word_tokens = [self.tokenizer.unk_token]
+
+                tokens.extend(word_tokens)
+                label_id = self.lang.slot2id.get(slot_label, self.lang.slot2id['pad'])
+
+                # Assign label only to first subword if label_all_tokens=False
+                if self.label_all_tokens:
+                    slot_label_ids.extend([label_id] * len(word_tokens))
+                    slot_mask.extend([1] * len(word_tokens))
+                else:
+                    slot_label_ids.extend([label_id] + [self.lang.slot2id['pad']] * (len(word_tokens) - 1))
+                    slot_mask.extend([1] + [0] * (len(word_tokens) - 1))
+
+            # Add special tokens
+            tokens = [self.tokenizer.cls_token] + tokens + [self.tokenizer.sep_token]
+            slot_label_ids = [self.lang.slot2id['pad']] + slot_label_ids + [self.lang.slot2id['pad']]
+            slot_mask = [0] + slot_mask + [0]
+
+            # Convert tokens to IDs
+            input_ids = self.tokenizer.convert_tokens_to_ids(tokens)
+
+            # Truncate if needed
+            if len(input_ids) > self.max_length:
+                input_ids = input_ids[:self.max_length]
+                attention_mask = [1] * self.max_length
+                token_type_ids = [0] * self.max_length
+                slot_label_ids = slot_label_ids[:self.max_length]
+                slot_mask = slot_mask[:self.max_length]
+            else:
+                attention_mask = [1] * len(input_ids)
+                token_type_ids = [0] * len(input_ids)
+
+            # Append to dataset
+            self.inputs.append(torch.tensor(input_ids, dtype=torch.long))
+            self.attention_masks.append(torch.tensor(attention_mask, dtype=torch.long))
+            self.token_type_ids.append(torch.tensor(token_type_ids, dtype=torch.long))
+            self.slot_labels.append(torch.tensor(slot_label_ids, dtype=torch.long))
+            self.slot_label_masks.append(torch.tensor(slot_mask, dtype=torch.bool))
+            self.intent_labels.append(torch.tensor(self.lang.intent2id[intent], dtype=torch.long))
+
     def __len__(self):
-        return len(self.records)
+        return len(self.inputs)
 
     def __getitem__(self, idx):
-        ex = self.records[idx]
-        words = ex['words']
-        slots = ex['slots']
-        intent = self.intent_list.index(ex['intent_label'])
-
-        # Manually tokenize words and align slot labels
-        sub_tokens = []
-        aligned_slot_labels = []
-
-        # Tokenize each word and align slot labels
-        for word, slot in zip(words, slots):
-
-            if slot not in self.slot_list:
-                print(f"[ERROR] Slot label '{slot}' not in slot_list!")
-                print("Available slot labels:", self.slot_list)
-                raise ValueError(f"Slot '{slot}' non valido.")
-
-
-            # Tokenize the word using the tokenizer
-            word_pieces = self.tokenizer.tokenize(word)
-
-            # If the word is not tokenized, use the unknown token
-            if not word_pieces:
-                word_pieces = [self.tokenizer.unk_token]
-
-            # Extend the sub_tokens with the tokenized word pieces
-            sub_tokens.extend(word_pieces)
-
-            if self.label_all_tokens:
-                # If label_all_tokens is True, assign the slot label to each sub-token of the origina word
-                aligned_slot_labels.extend([self.slot_list.index(slot)] * len(word_pieces))
-            else:
-                # If label_all_tokens is False, assign the slot label only to the first sub-token, the rest are ignored
-                aligned_slot_labels.append(self.slot_list.index(slot))
-                aligned_slot_labels.extend([-100] * (len(word_pieces) - 1))
-
-        # Truncate if needed
-        if len(sub_tokens) > self.max_length - 2:
-            sub_tokens = sub_tokens[:self.max_length - 2]
-            aligned_slot_labels = aligned_slot_labels[:self.max_length - 2]
-
-        # Add special tokens: [CLS] and [SEP]
-        sub_tokens = [self.tokenizer.cls_token] + sub_tokens + [self.tokenizer.sep_token]
-        aligned_slot_labels = [-100] + aligned_slot_labels + [-100]
-
-        # Convert to input IDs and attention mask
-        input_ids = self.tokenizer.convert_tokens_to_ids(sub_tokens)
-        attention_mask = [1] * len(input_ids)
-
         return {
-            'word_pieces': sub_tokens,  
-            'input_ids': torch.tensor(input_ids, dtype=torch.long),
-            'attention_mask': torch.tensor(attention_mask, dtype=torch.long),
-            'slot_labels': torch.tensor(aligned_slot_labels, dtype=torch.long),
-            'intent_label': torch.tensor(intent, dtype=torch.long)
+            'input_ids': self.inputs[idx],
+            'attention_mask': self.attention_masks[idx],
+            'token_type_ids': self.token_type_ids[idx],
+            'slot_labels': self.slot_labels[idx],
+            'slot_label_mask': self.slot_label_masks[idx],
+            'intent_label': self.intent_labels[idx]
         }
 
-def test_AtisDataset(dataset, records):
-    """
-    Uning during the development of this project to test the AtisDataset and if it correclty menage the sub-tokenisation. 
-    It prints the first 10 items in the dataset to verify the tokenization and alignment.
-    """
-    print("Testing AtisDataset...")
-    for i in range(10):
 
-        original_record = records[i]
-        item = dataset[i]
+def collate_fn_factory(words_pad_token_id, slots_pad_token_id):
+    def collate_fn(batch):
+        """
+        Custom collate function to pad sequences dynamically.
+        """
+        input_ids_list = [ex['input_ids'] for ex in batch]
+        attention_list = [ex['attention_mask'] for ex in batch]
+        slot_list_labels = [ex['slot_labels'] for ex in batch]
+        intent_labels = torch.stack([ex['intent_label'] for ex in batch])
 
-        print(f"Item {i}:")
-        print(f"\tOriginal Words: {original_record['words']}")
-        print(f"\tBert Sub-Token: {item['word_pieces']}")
-        print(f"\tAttention Mask: {item['attention_mask']}")
-        print(f"\tSlots Labels: {original_record['slots']}")
-        print(f"\tSlot Tokens:  {item['slot_labels']}")
-        print(f"\tIntent Label: {original_record['intent_label']}")
-        print(f"\tIntent Token: {item['intent_label']}")
-       
+        # Pad sequences
+        input_ids_padded = pad_sequence(input_ids_list, batch_first=True, padding_value=words_pad_token_id)
+        attention_padded = pad_sequence(attention_list, batch_first=True, padding_value=0)
+        slot_padded = pad_sequence(slot_list_labels, batch_first=True, padding_value=slots_pad_token_id)
 
-
-
-def collate_fn(batch, pad_token=0):
-    """
-    Custom collate_fn to pad a batch of examples and stack labels:
-    - input_ids, attention_mask: padded to max length in batch
-    - slot_labels: padded with -100 (ignored index)
-    - intent_label: stacked into a tensor of shape (batch_size,)
-    Returns a dict of batched tensors.
-    """
-    # Extract lists of tensors
-    input_ids_list = [ex['input_ids'] for ex in batch]
-    attention_list = [ex['attention_mask'] for ex in batch]
-    slot_list_labels = [ex['slot_labels'] for ex in batch]
-    intent_labels = torch.stack([ex['intent_label'] for ex in batch])
-
-    # Pad sequences (batch_first=True)
-    input_ids_padded = pad_sequence(input_ids_list, batch_first=True, padding_value=pad_token)
-    attention_padded = pad_sequence(attention_list, batch_first=True, padding_value=0)
-    slot_padded = pad_sequence(slot_list_labels, batch_first=True, padding_value=-100)
-
-    # Return batch dict
-    return {
-        'input_ids': input_ids_padded,
-        'attention_mask': attention_padded,
-        'slot_labels': slot_padded,
-        'intent_label': intent_labels
-    }
+        return {
+            'input_ids': input_ids_padded,
+            'attention_mask': attention_padded,
+            'slot_labels': slot_padded,
+            'intent_labels': intent_labels
+        }
+    return collate_fn
 
 
 
-
-def get_train_dev_dataloader(tokenizer, batch_size, pad_token):
+def get_train_dev_dataloader(tokenizer, batch_size):
     train_raw, dev_raw = get_train_dev_rawset()     # load raw datasets from json files
 
-    train_records = preprocess_raw(train_raw)       # split the words in the utterance and the slots
-    dev_records = preprocess_raw(dev_raw)           # split the words in the utterance and the slots
+    lang = Lang.load_from_file()
+    words_pad = lang.words_pad_token_id
+    slots_pad = lang.slots_pad_token_id
 
-    # Load the lists of slots and intents from the json file
-    slot_list, intent_list = get_slots_intents_lists()
+    # Define the collate function with dinamic words and slots pad
+    collate_fn = collate_fn_factory(words_pad, slots_pad)  
 
     train_dataset = AtisDataset(
-        records=train_records,
+        records=train_raw,
         tokenizer=tokenizer,
-        slot_list=slot_list,
-        intent_list=intent_list,
     )
 
     dev_dataset = AtisDataset(
-        records = dev_records,
+        records = dev_raw,
         tokenizer = tokenizer,
-        slot_list=slot_list,
-        intent_list=intent_list,
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=lambda x: collate_fn(x, pad_token), shuffle=True)
-    dev_loader = DataLoader(dev_dataset, batch_size=int(batch_size/2), collate_fn=lambda x: collate_fn(x, pad_token))
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
+    dev_loader = DataLoader(dev_dataset, batch_size=int(batch_size/2), collate_fn=collate_fn)
     print('\tTrain and Dev DataLoader initializated')
     
     return train_loader, dev_loader
