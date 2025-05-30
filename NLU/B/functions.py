@@ -3,6 +3,7 @@ import sys
 import csv
 import json
 import torch
+import shutil
 import numpy as np
 import torch.nn as nn
 import scipy.stats as st
@@ -113,29 +114,25 @@ def save_dev(bert_type, lr, batch_size, dropout, slot_f1, f1_ci_95, intent_accur
 
     # Prepare data to write
     data = {
-        'label': label,
-        'learning_rate': lr,
-        'batch_size': batch_size,
-        'dropout': dropout or None,
-        'slot_f1': round(slot_f1, 4),             # Slot F1 score rounded to 2 decimal places
-        '95% CI': f"{round(f1_ci_95[0], 4)} - {round(f1_ci_95[1], 4)}",  # 95% CI for F1 score
-        'intent_acc': round(intent_accuracy, 4),   # Intent accuracy rounded to 2 decimal places
-        '95% CI (beta)': f"{round(ci_95_beta[0], 4)} - {round(ci_95_beta[1], 4)}"  # 95% CI for intent accuracy
+        'Bert Type': label,
+        'Learning Rate': lr,
+        'Batch Size': batch_size,
+        'Dropout': dropout or None,
+        'Slot F1': round(slot_f1, 4),
+        '95% CI': f"{round(f1_ci_95[0], 4)} - {round(f1_ci_95[1], 4)}",
+        'Intent Acc': round(intent_accuracy, 4),
+        '95% CI (beta)': f"{round(ci_95_beta[0], 4)} - {round(ci_95_beta[1], 4)}"
     }
 
-    # Define fieldnames for CSV header
     fieldnames = [
         'Bert Type', 'Learning Rate', 'Batch Size', 'Dropout', 'Slot F1', '95% CI', 'Intent Acc', '95% CI (beta)'
     ]
 
-    # Write to CSV
     with open(filename, mode='a', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
-
         if not file_exists:
-            writer.writeheader()  # Write header only once
-
-        writer.writerow(data)  # Write the row with results and hyperparams
+            writer.writeheader()
+        writer.writerow(data)
 
     print(f"\tResults saved to {filename}")
 
@@ -190,10 +187,11 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
         optimizer.zero_grad() # Clear previous gradients
 
         # Move tensors to device
-        input_ids = batch['input_ids'].to(device)               # ( B, L )
-        attention_mask = batch['attention_mask'].to(device)     # ( B, L )
-        intent_labels = batch['intent_labels'].to(device)       # ( B, 1 )
-        slot_labels = batch['slot_labels'].to(device)           # ( B, L )   
+        input_ids = batch['input_ids'].to(device)               # (B, L)
+        attention_mask = batch['attention_mask'].to(device)     # (B, L)
+        intent_labels = batch['intent_labels'].to(device)       # (B)
+        slot_labels = batch['slot_labels'].to(device)           # (B, L)
+        slot_label_mask = batch['slot_label_mask'].to(device)   # (B, L)   
 
         # Forward pass
         slot_logits, intent_logits = model(
@@ -211,8 +209,10 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
         loss_intent = criterion_intents(intent_logits, intent_labels)
         
         # Flatten logits and labels for slot filling ( concatenate all the slots in a uniqe vector of dimension B x L)
-        slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])          
-        slot_labels_flat = slot_labels.view(-1)  
+        # slot_logits: (B, L, S), slot_labels: (B, L), slot_label_mask: (B, L)
+        active_loss = slot_label_mask.view(-1)  # flatten mask
+        slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])[active_loss]  # select only active tokens
+        slot_labels_flat = slot_labels.view(-1)[active_loss]
 
         # DEBUG print(f'slot_logits_flat {slot_logits_flat.shape} : {slot_logits_flat}')
         # DEBUG print(f'slot_labels_flat {slot_labels_flat.shape} : {slot_labels_flat}')
@@ -278,12 +278,13 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
     slot_id2label = lang.id2slot
 
     with torch.no_grad():  # Disable gradient computation
-        for sample in data:
+        for batch in data:
             # Move inputs to device
-            input_ids = sample['input_ids'].to(device)
-            attention_mask = sample['attention_mask'].to(device)
-            intent_labels = sample['intent_labels'].to(device)
-            slot_labels = sample['slot_labels'].to(device)
+            input_ids = batch['input_ids'].to(device)
+            attention_mask = batch['attention_mask'].to(device)
+            intent_labels = batch['intent_labels'].to(device)
+            slot_labels = batch['slot_labels'].to(device)
+            slot_label_mask = batch['slot_label_mask'].to(device)
 
             # DEBUG print(f'slot_logits {slot_logits.shape} : {slot_logits}')
             # DEBUG print(f'slot_labels {slot_labels.shape} : {slot_labels}')
@@ -295,8 +296,9 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
             )
 
             # Flatten logits and labels for loss calculation
-            slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])  # [batch_size * seq_len, num_classes]
-            slot_labels_flat = slot_labels.view(-1)                          # [batch_size * seq_len]
+            active_loss = slot_label_mask.view(-1)  # flatten mask
+            slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])[active_loss]  # select only active tokens
+            slot_labels_flat = slot_labels.view(-1)[active_loss]
 
             # DEBUG print(f'slot_logits_flat {slot_logits_flat.shape} : {slot_logits_flat}')
             # DEBUG print(f'slot_labels_flat {slot_labels_flat.shape} : {slot_labels_flat}')
@@ -315,49 +317,34 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
             hyp_intents.extend([intent_id2label[i] for i in pred_intents])
             ref_intents.extend([intent_id2label[i] for i in gold_intents])
 
-            # --- Slot predictions ---
-            pred_slots = torch.argmax(slot_logits, dim=1)  
+            # Slot predictions
+            pred_slots = torch.argmax(slot_logits, dim=2)  # (B, L)
 
-            # For each sequence in the batch
-            pred_slots = torch.argmax(slot_logits, dim=2)  # Shape: (batch_size, seq_len)
-
+            # For each sequence in batch
             for i in range(len(input_ids)):
-                # Get actual sequence length using attention_mask
                 length = attention_mask[i].sum().item()
 
-                # Extract input tokens and predictions
+                # Slice to actual length
                 input_ids_i = input_ids[i][:length].cpu().tolist()
                 pred_slot_ids_i = pred_slots[i][:length].cpu().tolist()
                 true_slot_ids_i = slot_labels[i][:length].cpu().tolist()
+                slot_mask_i = slot_label_mask[i][:length].cpu().tolist()
 
-                # Convert input token IDs to words
-                words = tokenizer.convert_ids_to_tokens(input_ids_i)
+                # Convert token ids to tokens using tokenizer
+                tokens = tokenizer.convert_ids_to_tokens(input_ids_i)
 
-                # Map slot IDs to labels
-                gold_slots = [slot_id2label[sid] for sid in true_slot_ids_i]
-                pred_slots_labels = [slot_id2label[sid] for sid in pred_slot_ids_i]
+                # Use mask to select only valid tokens for slot evaluation
+                gold_slots = [slot_id2label[sid] for sid, m in zip(true_slot_ids_i, slot_mask_i) if m == 1]
+                pred_slots_labels = [slot_id2label[sid] for sid, m in zip(pred_slot_ids_i, slot_mask_i) if m == 1]
+                tokens_filtered = [tok for tok, m in zip(tokens, slot_mask_i) if m == 1]
 
-                # DEBUG print(f"Words: { words }")
-                # DEBUG print(f"Gold Slots: { gold_slots } ")
-                # DEBUG print(f"Pred Slots: { pred_slots_labels } ")
+                ref_slots.append(list(zip(tokens_filtered, gold_slots)))
+                hyp_slots.append(list(zip(tokens_filtered, pred_slots_labels)))
 
-                # Append zipped (word, label) pairs
-                ref_slots.append(list(zip(words, gold_slots)))
-                hyp_slots.append(list(zip(words, pred_slots_labels)))
+    # DEBUG print(f'REF SLOTS type: {type(ref_slots)}, content: {ref_slots[:3]}')
+    # DEBUG print(f'HYP SLOTS type: {type(hyp_slots)}, content: {hyp_slots[:3]}')
 
-    print(f'REF SLOTS {ref_slots.shape}')
-    print(f'HYP SLOTS {hyp_slots.shape}')
-
-    try:
-        # Evaluate slot filling using a custom evaluate function
-        results = evaluate(ref_slots, hyp_slots)
-    except Exception as ex:
-        # Handle cases where the model predicts unseen/invalid slot labels
-        # print("Warning:", ex)
-        ref_s = set([x[1] for x in ref_slots])
-        hyp_s = set([x[1] for x in hyp_slots])
-        # print(hyp_s.difference(ref_s))
-        results = {"total": {"f": 0, "s": 0}}  # Default if evaluation fails
+    results = evaluate(ref_slots, hyp_slots)
 
     # Generate classification report for intents
     report_intent = classification_report(
@@ -518,7 +505,7 @@ def train_model(
                      dev_results['intent_res']['accuracy'], dev_results['intent_res']['ci_95_beta'])  
             
             # Save best model
-            save_model(model_name, best_model, hyperparameters['bert_type'], hyperparameters['dropout'], hyperparameters['num_intents_label', hyperparameters['num_slots_label']])# Save the best model
+            save_model(model_name, best_model, hyperparameters['bert_type'], hyperparameters['dropout'], hyperparameters['num_intents_label'], hyperparameters['num_slots_label'])
 
             print("Training completed.")
 
@@ -559,17 +546,16 @@ def save_test(bert_type, lr, batch_size, dropout, slot_f1, f1_ci_95, intent_accu
 
     # Prepare data to write
     data = {
-        'label': label,
-        'learning_rate': lr,
-        'batch_size': batch_size,
-        'dropout': dropout or 'None',
-        'slot_f1': round(slot_f1, 4),             # Slot F1 score rounded to 2 decimal places
-        '95% CI': f"{round(f1_ci_95[0], 4)} - {round(f1_ci_95[1], 4)}",  # 95% CI for F1 score
-        'intent_acc': round(intent_accuracy, 4),   # Intent accuracy rounded to 2 decimal places
-        '95% CI (beta)': f"{round(ci_95_beta[0], 4)} - {round(ci_95_beta[1], 4)}"  # 95% CI for intent accuracy
+        'Bert Type': label,
+        'Learning Rate': lr,
+        'Batch Size': batch_size,
+        'Dropout': dropout or None,
+        'Slot F1': round(slot_f1, 4),
+        '95% CI': f"{round(f1_ci_95[0], 4)} - {round(f1_ci_95[1], 4)}",
+        'Intent Acc': round(intent_accuracy, 4),
+        '95% CI (beta)': f"{round(ci_95_beta[0], 4)} - {round(ci_95_beta[1], 4)}"
     }
 
-    # Define fieldnames for CSV header
     fieldnames = [
         'Bert Type', 'Learning Rate', 'Batch Size', 'Dropout', 'Slot F1', '95% CI', 'Intent Acc', '95% CI (beta)'
     ]
@@ -656,11 +642,26 @@ def test_model(
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    results_test, intent_test, _ = eval_loop(test_loader, tokenizer, criterion_slots, criterion_intents, model)
+    old_path = os.path.join('bin', 'others', f"{model_name}.pt")
+    new_path = os.path.join('bin', f"{model_name}.pt")
+
+    # Move the file if it hasn't been moved already
+    if os.path.exists(old_path) and not os.path.exists(new_path):
+        shutil.move(old_path, new_path)
+
+    # Load saved weights into model
+    checkpoint = torch.load(new_path, weights_only=False)
+    model.load_state_dict(checkpoint['model'])
+    model.to(device)
+
+    # Set model to evaluation mode
+    model.eval()
+
+    results_test, intent_test, _ = eval_loop(test_loader, tokenizer, criterion_slots, criterion_intents, model, device)
 
     save_test_results(results_test, intent_test, model_name)
     # Save the dev results in a CSV file
-    save_test(hyperparameters['batch_type'], hyperparameters['lr'], hyperparameters['batch_size'], 
+    save_test(hyperparameters['bert_type'], hyperparameters['learning_rate'], hyperparameters['batch_size'], 
               hyperparameters['dropout'], results_test['total']['f'], results_test['total']['f1_ci_95'],
               intent_test['accuracy'], intent_test['ci_95_beta'])  
     
@@ -668,3 +669,5 @@ def test_model(
     print('Intent Accuracy:', intent_test['accuracy'])
 
     return results_test, intent_test
+
+

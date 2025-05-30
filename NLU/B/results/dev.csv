@@ -1,0 +1,2 @@
+Bert Type,Learning Rate,Batch Size,Dropout,Slot F1,95% CI,Intent Acc,95% CI (beta)
+base,5e-05,128,0.1,0.9846,0.9788 - 0.9905,0.99,0.9768 - 0.9956

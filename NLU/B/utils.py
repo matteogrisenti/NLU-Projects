@@ -354,24 +354,24 @@ class AtisDataset(Dataset):
 
 def collate_fn_factory(words_pad_token_id, slots_pad_token_id):
     def collate_fn(batch):
-        """
-        Custom collate function to pad sequences dynamically.
-        """
         input_ids_list = [ex['input_ids'] for ex in batch]
         attention_list = [ex['attention_mask'] for ex in batch]
-        slot_list_labels = [ex['slot_labels'] for ex in batch]
+        slot_labels_list = [ex['slot_labels'] for ex in batch]
+        slot_label_mask_list = [ex['slot_label_mask'] for ex in batch]  
         intent_labels = torch.stack([ex['intent_label'] for ex in batch])
 
         # Pad sequences
         input_ids_padded = pad_sequence(input_ids_list, batch_first=True, padding_value=words_pad_token_id)
         attention_padded = pad_sequence(attention_list, batch_first=True, padding_value=0)
-        slot_padded = pad_sequence(slot_list_labels, batch_first=True, padding_value=slots_pad_token_id)
+        slot_labels_padded = pad_sequence(slot_labels_list, batch_first=True, padding_value=slots_pad_token_id)
+        slot_label_mask_padded = pad_sequence(slot_label_mask_list, batch_first=True, padding_value=0)  # pad mask with 0
 
         return {
             'input_ids': input_ids_padded,
             'attention_mask': attention_padded,
-            'slot_labels': slot_padded,
-            'intent_labels': intent_labels
+            'slot_labels': slot_labels_padded,
+            'slot_label_mask': slot_label_mask_padded,  
+            'intent_labels': intent_labels,  
         }
     return collate_fn
 
@@ -402,3 +402,27 @@ def get_train_dev_dataloader(tokenizer, batch_size):
     print('\tTrain and Dev DataLoader initializated')
     
     return train_loader, dev_loader
+
+
+
+
+def get_test_dataloader(tokenizer, batch_size):
+    test_raw = get_test_rawset()  # You'll need to implement this to load your test data JSON
+
+    lang = Lang.load_from_file()
+    words_pad = lang.words_pad_token_id
+    slots_pad = lang.slots_pad_token_id
+
+    # Use the same collate function with dynamic padding tokens
+    collate_fn = collate_fn_factory(words_pad, slots_pad)
+
+    test_dataset = AtisDataset(
+        records=test_raw,
+        tokenizer=tokenizer,
+    )
+
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=False)
+
+    print('\tTest DataLoader initialized')
+
+    return test_loader

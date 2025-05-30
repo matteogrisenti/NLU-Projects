@@ -7,9 +7,9 @@ os.environ['CUDA_LAUNCH_BLOCKING'] = "1"  # Used to report errors on CUDA side
 from transformers import BertTokenizer, BertModel
 from pprint import pprint
 
-from functions import model_name, train_model
+from functions import model_name, train_model, test_model
 from model import BertIntentSlot
-from utils import init_dataset, get_slots_intents_len, get_train_dev_dataloader
+from utils import init_dataset, get_slots_intents_len, get_train_dev_dataloader, get_test_dataloader
 
 
 SLOTS_PAD_TOKEN = -100
@@ -40,17 +40,25 @@ hyperparameters = {
     'num_intents_label': len_intent_list
 }
 
-train_loader, dev_loader = get_train_dev_dataloader(tokenizer, hyperparameters['batch_size'])
-
 name = model_name(hyperparameters['bert_type'], hyperparameters['learning_rate'], 
                   hyperparameters['batch_size'], hyperparameters['dropout']) 
 
 model = BertIntentSlot(hyperparameters['bert_type'], hyperparameters['num_intents_label'],
                        hyperparameters['num_slots_label'], hyperparameters['dropout'])
-model.init_classification_heads()
 
 criterion_slots = nn.CrossEntropyLoss(ignore_index=SLOTS_PAD_TOKEN)
 criterion_intents = nn.CrossEntropyLoss()
 
+''' 
+model.init_classification_heads()
+
+train_loader, dev_loader = get_train_dev_dataloader(tokenizer, hyperparameters['batch_size'])
+
 model = train_model(model, train_loader, dev_loader, tokenizer, criterion_slots, criterion_intents, 
                     N_EPOCHES, PATIENTE, CLIP, model_name=name, device=DEVICE, hyperparameters=hyperparameters)
+''' 
+
+test_loader = get_test_dataloader(tokenizer, hyperparameters['batch_size'])
+
+results_test, intent_test = test_model(model, test_loader, tokenizer, criterion_slots, criterion_intents, 
+                                       model_name=name, device=DEVICE, hyperparameters=hyperparameters)
