@@ -184,24 +184,16 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
     model.train()       # Set model to training mode 
     loss_array = []     # To store loss values for each batch
 
-    #[DEBUG] count_batch = 0; 
-
     # Iterate over each batch in the training data
     for batch in data:
         #[DEBUG] count_batch=count_batch+1
         optimizer.zero_grad() # Clear previous gradients
 
         # Move tensors to device
-        input_ids = batch['input_ids'].to(device)
-        attention_mask = batch['attention_mask'].to(device)
-        intent_labels = batch['intent_labels'].to(device)
-        slot_labels = batch['slot_labels'].to(device)
-
-        #[DEBUG] print(f"=== BATCH {count_batch} DEBUG START ===")
-        #[DEBUG] print("input_ids.shape:", input_ids.shape)
-        #[DEBUG] print("attention_mask.shape:", attention_mask.shape)
-        #[DEBUG] print("slot_labels.shape:", slot_labels.shape)
-        #[DEBUG] print("intent_labels.shape:", intent_labels.shape)
+        input_ids = batch['input_ids'].to(device)               # ( B, L )
+        attention_mask = batch['attention_mask'].to(device)     # ( B, L )
+        intent_labels = batch['intent_labels'].to(device)       # ( B, 1 )
+        slot_labels = batch['slot_labels'].to(device)           # ( B, L )   
 
         # Forward pass
         slot_logits, intent_logits = model(
@@ -209,17 +201,24 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
             attention_mask=attention_mask
         )
 
+        # NB: slot_logits is a matrix ( B, L, S ) so for each predicted slot it don't return only a slota but a probability
+        #     distribution over each slot that the word belong to that slot
+
+        # DEBUG print(f'slot_logits {slot_logits.shape} : {slot_logits}')
+        # DEBUG print(f'slot_labels {slot_labels.shape} : {slot_labels}')
+
         # Compute intent loss
         loss_intent = criterion_intents(intent_logits, intent_labels)
-        #[DEBUG] print("loss intent: ", loss_intent)
         
-        # Flatten logits and labels for slot filling
-        slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])          # [batch_size * seq_len, num_classes]
+        # Flatten logits and labels for slot filling ( concatenate all the slots in a uniqe vector of dimension B x L)
+        slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])          
         slot_labels_flat = slot_labels.view(-1)  
+
+        # DEBUG print(f'slot_logits_flat {slot_logits_flat.shape} : {slot_logits_flat}')
+        # DEBUG print(f'slot_labels_flat {slot_labels_flat.shape} : {slot_labels_flat}')
         
         # Compute slot loss
         loss_slot = criterion_slots(slot_logits_flat, slot_labels_flat)
-        #[DEBUG] print("loss slot: ", loss_slot)
 
         # Total loss (equal weight)
         loss = loss_intent + loss_slot
@@ -238,8 +237,6 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
 
         # Update model parameters using the optimizer
         optimizer.step() 
-
-        #[DEBUG] print("=== BATCH DEBUG END ===")
 
     return loss_array
 
@@ -288,6 +285,9 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
             intent_labels = sample['intent_labels'].to(device)
             slot_labels = sample['slot_labels'].to(device)
 
+            # DEBUG print(f'slot_logits {slot_logits.shape} : {slot_logits}')
+            # DEBUG print(f'slot_labels {slot_labels.shape} : {slot_labels}')
+
             # Forward pass
             slot_logits, intent_logits = model(
                 input_ids=input_ids,
@@ -298,6 +298,9 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
             slot_logits_flat = slot_logits.view(-1, slot_logits.shape[-1])  # [batch_size * seq_len, num_classes]
             slot_labels_flat = slot_labels.view(-1)                          # [batch_size * seq_len]
 
+            # DEBUG print(f'slot_logits_flat {slot_logits_flat.shape} : {slot_logits_flat}')
+            # DEBUG print(f'slot_labels_flat {slot_labels_flat.shape} : {slot_labels_flat}')
+        
             # Compute losses
             loss_intent = criterion_intents(intent_logits, intent_labels)
             loss_slot = criterion_slots(slot_logits_flat, slot_labels_flat)
@@ -334,23 +337,26 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
                 gold_slots = [slot_id2label[sid] for sid in true_slot_ids_i]
                 pred_slots_labels = [slot_id2label[sid] for sid in pred_slot_ids_i]
 
-                print(f"Words: { words }")
-                print(f"Gold Slots: { gold_slots } ")
-                print(f"Pred Slots: { pred_slots_labels } ")
+                # DEBUG print(f"Words: { words }")
+                # DEBUG print(f"Gold Slots: { gold_slots } ")
+                # DEBUG print(f"Pred Slots: { pred_slots_labels } ")
 
                 # Append zipped (word, label) pairs
                 ref_slots.append(list(zip(words, gold_slots)))
                 hyp_slots.append(list(zip(words, pred_slots_labels)))
+
+    print(f'REF SLOTS {ref_slots.shape}')
+    print(f'HYP SLOTS {hyp_slots.shape}')
 
     try:
         # Evaluate slot filling using a custom evaluate function
         results = evaluate(ref_slots, hyp_slots)
     except Exception as ex:
         # Handle cases where the model predicts unseen/invalid slot labels
-        print("Warning:", ex)
+        # print("Warning:", ex)
         ref_s = set([x[1] for x in ref_slots])
         hyp_s = set([x[1] for x in hyp_slots])
-        print(hyp_s.difference(ref_s))
+        # print(hyp_s.difference(ref_s))
         results = {"total": {"f": 0, "s": 0}}  # Default if evaluation fails
 
     # Generate classification report for intents
