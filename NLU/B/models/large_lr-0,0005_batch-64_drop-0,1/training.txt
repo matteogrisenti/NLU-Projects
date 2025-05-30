@@ -1,0 +1,12 @@
+[DEBUG] Slot F1: f1=0.0, n_slots=1692
+[DEBUG] sem_f1=0.0
+Epoch 1 | Dev Slot F1: 0.0000 | Intent Acc: 0.7369
+[DEBUG] Slot F1: f1=0.0, n_slots=1692
+[DEBUG] sem_f1=0.0
+Epoch 2 | Dev Slot F1: 0.0000 | Intent Acc: 0.7369
+[DEBUG] Slot F1: f1=0.0, n_slots=1692
+[DEBUG] sem_f1=0.0
+Epoch 3 | Dev Slot F1: 0.0000 | Intent Acc: 0.7369
+Early stopping triggered.
+	Training data saved to: models/large_lr-0,0005_batch-64_drop-0,1/training_data.json
+	Development results saved to: models/large_lr-0,0005_batch-64_drop-0,1/dev_data.json

@@ -357,17 +357,37 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
     # Beta confidence interval for intent accuracy
     correct = sum(r == h for r, h in zip(ref_intents, hyp_intents))
     total = len(ref_intents)
-    ci_beta_low, ci_beta_high = st.beta.interval(0.95, correct + 1, total - correct + 1)
+
+    if total == 0:
+        print("[WARNING] Total number of intents is 0 — skipping beta CI")
+        ci_beta_low, ci_beta_high = 0, 0
+    else:
+        try:
+            ci_beta_low, ci_beta_high = st.beta.interval(0.95, correct + 1, total - correct + 1)
+        except Exception as e:
+            print(f"[ERROR] st.beta.interval failed with a={correct + 1}, b={total - correct + 1}")
+            print(f"Exception: {e}")
+            ci_beta_low, ci_beta_high = 0, 0
     report_intent['ci_95_beta'] = (ci_beta_low, ci_beta_high)
 
-    # Calculate standard error and 95% CI for slot F1 score
+    # Standard error and CI for slot F1
     slot_f1 = results['total']['f']
     n_slots = results['total'].get('s', 0)
 
-    if n_slots > 0:
-        sem_f1 = (slot_f1 * (1 - slot_f1) / n_slots) ** 0.5
-        ci_f1_low, ci_f1_high = st.norm.interval(0.95, loc=slot_f1, scale=sem_f1)
+    print(f"[DEBUG] Slot F1: f1={slot_f1}, n_slots={n_slots}")
+
+    if n_slots > 0 and 0 <= slot_f1 <= 1:
+        try:
+            sem_f1 = (slot_f1 * (1 - slot_f1) / n_slots) ** 0.5
+            print(f"[DEBUG] sem_f1={sem_f1}")
+            ci_f1_low, ci_f1_high = st.norm.interval(0.95, loc=slot_f1, scale=sem_f1)
+        except Exception as e:
+            print(f"[ERROR] st.norm.interval failed with slot_f1={slot_f1}, sem_f1={sem_f1}")
+            print(f"Exception: {e}")
+            sem_f1 = 0
+            ci_f1_low, ci_f1_high = 0, 0
     else:
+        print("[WARNING] Invalid slot_f1 or n_slots — skipping normal CI")
         sem_f1 = 0
         ci_f1_low, ci_f1_high = 0, 0
 
