@@ -11,3 +11,6 @@ __pycache__/
 .DS_Store
 .vscode/
 .idea/
+
+# other files
+/others

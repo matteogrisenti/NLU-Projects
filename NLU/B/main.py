@@ -31,7 +31,7 @@ init_dataset(tokenizer, SLOTS_PAD_TOKEN)
 '''
 
 
-def train(model, hyperparameters, name):
+def train(model, hyperparameters, name, criterion_slots, criterion_intents):
     model.init_classification_heads()
 
     train_loader, dev_loader = get_train_dev_dataloader(tokenizer, hyperparameters['batch_size'])
@@ -41,7 +41,7 @@ def train(model, hyperparameters, name):
 
     plot_all(name)
 
-def test(model, hyperparameters):
+def test(model, hyperparameters, name, criterion_slots, criterion_intents):
     test_loader = get_test_dataloader(tokenizer, hyperparameters['batch_size'])
 
     results_test, intent_test = test_model(model, test_loader, tokenizer, criterion_slots, criterion_intents, 
@@ -50,29 +50,54 @@ def test(model, hyperparameters):
 len_slot_list, len_intent_list = get_slots_intents_len()
 
 
+# ----------------------------------------- TRAINING ------------------------------------------------------
+''' 
+BATCH_SIZES = [ 16, 32, 64 ]
+DROPOUTS = [ 0.1, 0.15 ]
+LEARNING_RATES = 0.00001
 
-BATCH_SIZES = 64 #[32, 64, 128]
-DROPOUTS = 0.1  #[0.05, 0.3, 0.5]
-LEARNING_RATES = [0.0005, 0.0001, 0.00005, 0.00001]
 
-for lr in LEARNING_RATES:
-    hyperparameters = {
-        'bert_type' : 'bert-large-uncased',
-        'learning_rate': lr, 
-        'batch_size': BATCH_SIZES, 
-        'dropout' : DROPOUTS,
-        'num_slots_label': len_slot_list,
-        'num_intents_label': len_intent_list
-    }
+for do in DROPOUTS:
+    for bs in BATCH_SIZES:
+        hyperparameters = {
+            'bert_type' : 'bert-large-uncased',
+            'learning_rate': LEARNING_RATES, 
+            'batch_size': bs, 
+            'dropout' : do,
+            'num_slots_label': len_slot_list,
+            'num_intents_label': len_intent_list
+        }
 
-    name = model_name(hyperparameters['bert_type'], hyperparameters['learning_rate'], 
-                    hyperparameters['batch_size'], hyperparameters['dropout']) 
+        name = model_name(hyperparameters['bert_type'], hyperparameters['learning_rate'], 
+                        hyperparameters['batch_size'], hyperparameters['dropout']) 
 
-    model = BertIntentSlot(hyperparameters['bert_type'], hyperparameters['num_intents_label'],
-                        hyperparameters['num_slots_label'], hyperparameters['dropout'])
+        model = BertIntentSlot(hyperparameters['bert_type'], hyperparameters['num_intents_label'],
+                            hyperparameters['num_slots_label'], hyperparameters['dropout'])
 
-    criterion_slots = nn.CrossEntropyLoss(ignore_index=SLOTS_PAD_TOKEN)
-    criterion_intents = nn.CrossEntropyLoss()
+        criterion_slots = nn.CrossEntropyLoss(ignore_index=SLOTS_PAD_TOKEN)
+        criterion_intents = nn.CrossEntropyLoss()
 
-    train(model, hyperparameters, name)
-    # test(model, hyperparameters)
+        train(model, hyperparameters, name, criterion_slots, criterion_intents)    
+'''
+
+
+# ------------------------------------------ TESTING ------------------------------------------------------
+hyperparameters = {
+    'bert_type' : 'bert-large-uncased',
+    'learning_rate': 0.00001, 
+    'batch_size': 64, 
+    'dropout' : 0.15,
+    'num_slots_label': len_slot_list,
+    'num_intents_label': len_intent_list
+}
+
+name = model_name(hyperparameters['bert_type'], hyperparameters['learning_rate'], 
+                        hyperparameters['batch_size'], hyperparameters['dropout']) 
+
+model = BertIntentSlot(hyperparameters['bert_type'], hyperparameters['num_intents_label'],
+                    hyperparameters['num_slots_label'], hyperparameters['dropout'])
+
+criterion_slots = nn.CrossEntropyLoss(ignore_index=SLOTS_PAD_TOKEN)
+criterion_intents = nn.CrossEntropyLoss()
+
+test(model, hyperparameters, name, criterion_slots, criterion_intents)

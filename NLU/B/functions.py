@@ -341,10 +341,10 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
                 ref_slots.append(list(zip(tokens_filtered, gold_slots)))
                 hyp_slots.append(list(zip(tokens_filtered, pred_slots_labels)))
 
-    # DEBUG print(f'REF SLOTS type: {type(ref_slots)}, content: {ref_slots[:3]}')
-    # DEBUG print(f'HYP SLOTS type: {type(hyp_slots)}, content: {hyp_slots[:3]}')
-
+    # print(f'[DEBUG] REF SLOTS type: {type(ref_slots)}, content: {ref_slots[:3]}')
+    # print(f'[DEBUG] HYP SLOTS type: {type(hyp_slots)}, content: {hyp_slots[:3]}')
     results = evaluate(ref_slots, hyp_slots)
+    # print(f"[DEBUG] results {results}")
 
     # Generate classification report for intents
     report_intent = classification_report(
@@ -374,12 +374,12 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
     slot_f1 = results['total']['f']
     n_slots = results['total'].get('s', 0)
 
-    print(f"[DEBUG] Slot F1: f1={slot_f1}, n_slots={n_slots}")
+    # print(f"[DEBUG] Slot F1: f1={slot_f1}, n_slots={n_slots}")
 
-    if n_slots > 0 and 0 <= slot_f1 <= 1:
+    if n_slots > 0 and 0 < slot_f1 <= 1:
         try:
             sem_f1 = (slot_f1 * (1 - slot_f1) / n_slots) ** 0.5
-            print(f"[DEBUG] sem_f1={sem_f1}")
+            # print(f"[DEBUG] sem_f1={sem_f1}")
             ci_f1_low, ci_f1_high = st.norm.interval(0.95, loc=slot_f1, scale=sem_f1)
         except Exception as e:
             print(f"[ERROR] st.norm.interval failed with slot_f1={slot_f1}, sem_f1={sem_f1}")

@@ -26,6 +26,12 @@ class BertIntentSlot(nn.Module):
 
         # Slot classifier: uses token-level BERT outputs to predict slot labels for each token
         self.slot_classifier = nn.Linear(self.bert.config.hidden_size, num_slot_labels)
+
+        print(f"[DEBUG] New model initialized with:\n"
+                f"\t- BERT type: {bert_type} (hidden size: {self.bert.config.hidden_size})\n"
+                f"\t- Intent classifier output dim: {num_intent_labels}\n"
+                f"\t- Slot classifier output dim: {num_slot_labels}\n"
+                f"\t- Dropout rate: {dropout}\n ")
         
 
     def forward(self, input_ids, attention_mask, token_type_ids=None):
