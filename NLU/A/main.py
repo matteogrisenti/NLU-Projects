@@ -135,51 +135,74 @@ def testing_model(hyperparameters):
 # ------------------------------------------ SETUP ------------------------------------------------------
 device = 'cuda:0' # cuda:0 means we are using the GPU with id 0, if you have multiple GPU
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1" # Used to report errors on CUDA side
-
 PAD_TOKEN = 0
 
-# -------------------------------------- HYPERPARAMETERS ------------------------------------------------
-label = 'Dropout'
 
-hid_size = 600                # originally 200
-emb_size = 900                # originally 300
-n_layer = 2                             # originally 1
-batch_size = 32                # originally 128
 
-lr = 0.001                           # originally 0.0001
-clip = 5                             # originally 5
-dropout = 0.5         # originally 0.5
 
+
+#--------------------------------------------- TRAINING --------------------------------------------------
 '''
+DROPOUT = [0.3, 0.7] 
+
 for i in range(len(dropout)):
 
     hyperparameters = {
-        'label': label,
-        'hid_size': hid_size,
-        'emb_size': emb_size,
-        'n_layer': n_layer,
-        'batch_size': batch_size,
-        'lr': lr,
-        'clip': clip,
+        'label': 'Dropout',
+        'hid_size': 600,
+        'emb_size': 900,
+        'n_layer': 2,
+        'batch_size': 32,
+        'lr': 0.001,
+        'clip': 5,
         'dropout': dropout[i]
     }
 
-    #---------------------------------- TRAINING AND DEVLOPMENT -----------------------------------------------
     training_dev_model(hyperparameters)
 '''
+
+
+
+
+
 # ------------------------------------------ TESTING ----------------------------------------------------
-hyperparameters = {
-    'label': label,
-    'hid_size': hid_size,
-    'emb_size': emb_size,
-    'n_layer': n_layer,
-    'batch_size': batch_size,
-    'lr': lr,
-    'clip': clip,
-    'dropout': dropout
+SimpleIAS = {
+    'label': 'SimpleIAS',
+    'hid_size': 200,
+    'emb_size': 300,
+    'n_layer': 1,
+    'batch_size': 128,
+    'lr': 0.001,
+    'clip': 5,
+    'dropout': None
 }
 
-testing_model(hyperparameters)
+Bidirectional = {
+    'label': 'Bidirectional',
+    'hid_size': 600,
+    'emb_size': 900,
+    'n_layer': 1,
+    'batch_size': 128,
+    'lr': 0.001,
+    'clip': 5,
+    'dropout': None
+}
+
+Dropout = {
+    'label': 'Dropout',
+    'hid_size': 600,
+    'emb_size': 900,
+    'n_layer': 2,
+    'batch_size': 32,
+    'lr': 0.001,
+    'clip': 5,
+    'dropout': 0.5
+}
+
+models = [SimpleIAS, Bidirectional, Dropout]
+
+for hyperparameters in models:
+    testing_model(hyperparameters)
 
 
 
