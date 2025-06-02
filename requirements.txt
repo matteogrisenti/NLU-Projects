@@ -8,3 +8,4 @@ tqdm
 scipy
 seaborn
 scikit-learn
+transformers

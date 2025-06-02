@@ -1,0 +1,35 @@
+Epoch 1 | Dev Slot F1: 0.8559 | Intent Acc: 0.9538
+New best F1: 0.8559
+Epoch 2 | Dev Slot F1: 0.9221 | Intent Acc: 0.9859
+New best F1: 0.9221
+Epoch 3 | Dev Slot F1: 0.9546 | Intent Acc: 0.9859
+New best F1: 0.9546
+Epoch 4 | Dev Slot F1: 0.9708 | Intent Acc: 0.9859
+New best F1: 0.9708
+Epoch 5 | Dev Slot F1: 0.9749 | Intent Acc: 0.9920
+New best F1: 0.9749
+Epoch 6 | Dev Slot F1: 0.9761 | Intent Acc: 0.9859
+New best F1: 0.9761
+Epoch 7 | Dev Slot F1: 0.9752 | Intent Acc: 0.9880
+Epoch 8 | Dev Slot F1: 0.9796 | Intent Acc: 0.9920
+New best F1: 0.9796
+Epoch 9 | Dev Slot F1: 0.9814 | Intent Acc: 0.9920
+New best F1: 0.9814
+Epoch 10 | Dev Slot F1: 0.9826 | Intent Acc: 0.9900
+New best F1: 0.9826
+Epoch 11 | Dev Slot F1: 0.9826 | Intent Acc: 0.9880
+New best F1: 0.9826
+Epoch 12 | Dev Slot F1: 0.9791 | Intent Acc: 0.9880
+Epoch 13 | Dev Slot F1: 0.9790 | Intent Acc: 0.9920
+Epoch 14 | Dev Slot F1: 0.9829 | Intent Acc: 0.9900
+New best F1: 0.9829
+Epoch 15 | Dev Slot F1: 0.9829 | Intent Acc: 0.9900
+Epoch 16 | Dev Slot F1: 0.9803 | Intent Acc: 0.9920
+Epoch 17 | Dev Slot F1: 0.9826 | Intent Acc: 0.9940
+Early stopping triggered.
+	Training data saved to: models/large_lr-5e-05_batch-64_drop-0,05/training_data.json
+	Development results saved to: models/large_lr-5e-05_batch-64_drop-0,05/dev_data.json
+	Results saved to results/dev.csv
+	Saving model to bin/others/large_lr-5e-05_batch-64_drop-0,05.pt:
+		BERT type: bert-large-uncased, num_intent_labels: 26, num_slot_labels: 130
+Training completed.
