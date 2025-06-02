@@ -661,7 +661,6 @@ def test_model(
     # Set default device if not provided
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     old_path = os.path.join('bin', 'others', f"{model_name}.pt")
     new_path = os.path.join('bin', f"{model_name}.pt")
 

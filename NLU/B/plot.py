@@ -75,6 +75,10 @@ def plot_all(model_name):
 
 
 def plot_heatmap_with_annotations():
+    ''' 
+    This function is used to plot the dev performance of Base Bert model in a heat map
+    '''
+
     # Raw data
     data = """
     base,0.0001,128,0.1,0.9844,0.9784 - 0.9903,0.996,0.9856 - 0.9988
@@ -131,6 +135,7 @@ def plot_heatmap_with_annotations():
     # plt.show()
     plt.savefig('heatmap.png', dpi=300)
     plt.close()
+
 
 # Call the function
 # plot_heatmap_with_annotations()

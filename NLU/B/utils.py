@@ -119,55 +119,79 @@ def get_test_rawset():
 
 
 
-def preprocess_raw(raw_data):
-    '''
-    Preprocess the raw data in order to get a form that will be used by the BERT Tokenizzer.
-    It simply split the utterance in an array of  words and the the slots in an array of slots
-    '''
-    return [
-        {
-            "words": ex["utterance"].split(),
-            "slots": ex["slots"].split(),
-            "intent_label": ex["intent"]
-        }
-        for ex in raw_data
-    ]
-
-
-def get_slots_intents_lists():
-    return None
-
-
 class Lang():
+    """
+    A class to manage vocabularies (intent labels, slot labels, special tokens) for NLU tasks.
+
+    Attributes:
+        words_pad_token (str): The actual string used for padding input tokens.
+        words_pad_token_id (int): Tokenizer ID for the padding token.
+        slots_pad_token_id (int): Padding value used for slot labels.
+
+        slot2id (dict): Mapping from slot names to IDs.
+        id2slot (dict): Inverse mapping from slot IDs to names.
+        intent2id (dict): Mapping from intent names to IDs.
+        id2intent (dict): Inverse mapping from intent IDs to names.
+
+        len_slots (int): Number of unique slot labels including padding.
+        len_intents (int): Number of unique intents.
+    """
+
     def __init__(self, intents, slots, tokenizer, slots_pad_token):
+        """
+        Initializes the language object by building mappings for intents and slots.
+
+        Args:
+            intents (list): List of all intent labels in the dataset.
+            slots (list): List of all slot labels in the dataset.
+            tokenizer (transformers.PreTrainedTokenizer): Tokenizer used for input encoding.
+            slots_pad_token (int): Padding value for slot labels.
+        """
+        # Get the pad token and its ID from the tokenizer
         self.words_pad_token = tokenizer.pad_token 
         self.words_pad_token_id = tokenizer.pad_token_id
         self.slots_pad_token_id = slots_pad_token
         
-        # Build vocabularies
-        self.slot2id = self.lab2id(slots, pad=True)
-        self.intent2id = self.lab2id(intents)
+        # Build mappings for slots and intents
+        self.slot2id = self.lab2id(slots, pad=True)     # Add 'pad' as a special label
+        self.intent2id = self.lab2id(intents)           # No pad needed for intent classification
 
-        # Reverse mappings
+        # Create reverse mappings for decoding
         self.id2slot = {v:k for k, v in self.slot2id.items()}
         self.id2intent = {v:k for k, v in self.intent2id.items()}
 
-        # Save also the number of slots and intents
+        # Store sizes of vocabularies
         self.len_slots = len(self.slot2id)
         self.len_intents = len(self.intent2id)
 
-        # Save the Lang in Json file
+        # Save the vocabulary to a JSON file for future use
         self.save_json()
 
     def lab2id(self, elements, pad=False):
+        """
+        Converts a list of labels into a dictionary mapping from label to unique ID.
+
+        Args:
+            elements (list): List of labels (e.g., slots or intents).
+            pad (bool): Whether to include a special 'pad' label at the beginning.
+
+        Returns:
+            dict: Mapping from label name to ID.
+        """
         vocab = {}
         if pad:
-            vocab['pad'] = self.slots_pad_token_id  # Ensure consistent padding ID
-        for label in sorted(set(elements)):     # Sort for consistency
+            vocab['pad'] = self.slots_pad_token_id  # Use provided pad token ID
+        for label in sorted(set(elements)):         # Sort for consistent order
             vocab[label] = len(vocab)
         return vocab
 
     def to_dict(self):
+        """
+        Serializes the Lang object to a dictionary for saving to JSON.
+
+        Returns:
+            dict: All attributes in a serializable format.
+        """
         return {
             'words_pad_token': self.words_pad_token,
             'words_pad_token_id': self.words_pad_token_id,
@@ -185,6 +209,15 @@ class Lang():
     
     @classmethod
     def from_dict(cls, data):
+        """
+        Deserializes a dictionary back into a Lang object.
+
+        Args:
+            data (dict): Dictionary loaded from a JSON file.
+
+        Returns:
+            Lang: Reconstructed Lang object.
+        """
         obj = cls.__new__(cls)  # create instance without calling __init__
 
         obj.words_pad_token = data.get('words_pad_token')
@@ -204,7 +237,18 @@ class Lang():
 
     @classmethod
     def load_from_file(cls, json_path="dataset/lang.json"):
-        """Load Lang object directly from JSON file"""
+        """
+        Loads a Lang object from a JSON file.
+
+        Args:
+            json_path (str): Path to the saved lang JSON file.
+
+        Returns:
+            Lang: Loaded Lang object.
+
+        Raises:
+            FileNotFoundError: If the JSON file does not exist.
+        """
         if not os.path.exists(json_path):
             raise FileNotFoundError(f"Language file not found at {json_path}")
         
@@ -214,7 +258,12 @@ class Lang():
         return cls.from_dict(data)
 
     def save_json(self, json_file="dataset/lang.json"):
-        """Save vocabularies as JSON for later loading"""
+        """
+        Saves the current Lang object as a JSON file.
+
+        Args:
+            json_file (str): Path where the JSON should be saved.
+        """
         os.makedirs(os.path.dirname(json_file), exist_ok=True)
         with open(json_file, 'w', encoding='utf-8') as f:
             json.dump(self.to_dict(), f, indent=2)
@@ -222,8 +271,22 @@ class Lang():
 
 
 
+
 def get_slots_intents_len(json_path="dataset/lang.json"):
-    """Returns the number of slots and intents from the lang.json file."""
+    """
+    Retrieves the number of unique slots and intents from the saved Lang JSON file.
+
+    Useful for initializing model output heads.
+
+    Args:
+        json_path (str): Path to the lang.json file.
+
+    Returns:
+        tuple: (len_slots, len_intents)
+
+    Raises:
+        FileNotFoundError: If the JSON file does not exist.
+    """
     if not os.path.exists(json_path):
         raise FileNotFoundError(f"Language file not found at {json_path}")
     
@@ -237,23 +300,30 @@ def get_slots_intents_len(json_path="dataset/lang.json"):
 
 def init_dataset(tokenizer, slots_pad_token):
     """
-    Initializes the dataset:
-    - Splits the original dataset into train/dev
-    - Extracts global list of slots and intents
-    - Saves them in a JSON file
+    Initializes the dataset by:
+    - Splitting the original training set into train and dev sets
+    - Building global vocabularies of intents and slots
+    - Saving them into a JSON file for later use
+
+    This ensures consistency across train, dev, and test sets.
+
+    Args:
+        tokenizer (transformers.PreTrainedTokenizer): Tokenizer used for input encoding.
+        slots_pad_token (int): Padding value for slot labels.
     """
-    # 1) Divide the original train set in train_split and dev_split
+    # Step 1: Split the original dataset into train and dev
     extract_dev_set()      
 
-    # 2) Define a global list of all intents and slots in all the sets. 
-    #    This is done becouse we do not wat unk labels, however this depends on the research purpose
-    train_raw, dev_raw = get_train_dev_rawset()     # load the raw data from the json files
+    # Step 2: Load raw datasets
+    train_raw, dev_raw = get_train_dev_rawset()     
     test_raw = get_test_rawset()
 
-    corpus = train_raw + dev_raw + test_raw                           # merge all the set toghether 
-    slots = set(sum([line['slots'].split() for line in corpus],[]))   # set of all the slots
-    intents = set([line['intent'] for line in corpus])                # set of all the intents
+    # Step 3: Merge all records to collect all possible slots and intents
+    corpus = train_raw + dev_raw + test_raw                           
+    slots = set(sum([line['slots'].split() for line in corpus],[]))    # Extract all unique slot labels from the corpus
+    intents = set([line['intent'] for line in corpus])                 # Extract all unique intent labels from the corpus
 
+    # Step 4: Create and save the Lang object
     lang = Lang(intents, slots, tokenizer, slots_pad_token )
     print('Dataset initialized correctly')
 
@@ -352,20 +422,47 @@ class AtisDataset(Dataset):
         }
 
 
+
+
+# Factory function to create a custom collate function with dynamic padding tokens
 def collate_fn_factory(words_pad_token_id, slots_pad_token_id):
+    """
+    Returns a collate function that dynamically pads sequences in a batch.
+    
+    Args:
+        words_pad_token_id (int): Token ID used to pad input word tokens.
+        slots_pad_token_id (int): Token ID used to pad slot label tokens.
+
+    Returns:
+        collate_fn (function): A function that takes a batch of examples and returns a padded batch.
+    """
+
     def collate_fn(batch):
+        """
+        Collates a batch of data by padding variable-length sequences.
+
+        Args:
+            batch (list of dicts): Each dict contains 'input_ids', 'attention_mask',
+                                   'slot_labels', 'slot_label_mask', and 'intent_label'.
+
+        Returns:
+            dict: A dictionary containing padded tensors for each field in the batch.
+        """
+         
+        # Extract lists of each component from the batch
         input_ids_list = [ex['input_ids'] for ex in batch]
         attention_list = [ex['attention_mask'] for ex in batch]
         slot_labels_list = [ex['slot_labels'] for ex in batch]
         slot_label_mask_list = [ex['slot_label_mask'] for ex in batch]  
         intent_labels = torch.stack([ex['intent_label'] for ex in batch])
 
-        # Pad sequences
+        # Pad sequences to the length of the longest sequence in the batch
         input_ids_padded = pad_sequence(input_ids_list, batch_first=True, padding_value=words_pad_token_id)
         attention_padded = pad_sequence(attention_list, batch_first=True, padding_value=0)
         slot_labels_padded = pad_sequence(slot_labels_list, batch_first=True, padding_value=slots_pad_token_id)
         slot_label_mask_padded = pad_sequence(slot_label_mask_list, batch_first=True, padding_value=0)  # pad mask with 0
 
+        # Return a dictionary of padded tensors
         return {
             'input_ids': input_ids_padded,
             'attention_mask': attention_padded,
@@ -377,16 +474,31 @@ def collate_fn_factory(words_pad_token_id, slots_pad_token_id):
 
 
 
+
 def get_train_dev_dataloader(tokenizer, batch_size):
+    """
+    Creates DataLoader objects for training and development datasets.
+
+    Args:
+        tokenizer (transformers.PreTrainedTokenizer): Tokenizer to encode text.
+        batch_size (int): Number of samples per batch.
+
+    Returns:
+        tuple: (train_loader, dev_loader) - PyTorch DataLoaders for train and dev sets.
+    """
+
+    # Load raw JSON data for training and validation
     train_raw, dev_raw = get_train_dev_rawset()     # load raw datasets from json files
 
+    # Load language object to retrieve padding token IDs
     lang = Lang.load_from_file()
     words_pad = lang.words_pad_token_id
     slots_pad = lang.slots_pad_token_id
 
-    # Define the collate function with dinamic words and slots pad
+    # Create a collate function using the padding token IDs
     collate_fn = collate_fn_factory(words_pad, slots_pad)  
 
+    # Create Dataset objects for train and dev
     train_dataset = AtisDataset(
         records=train_raw,
         tokenizer=tokenizer,
@@ -397,8 +509,10 @@ def get_train_dev_dataloader(tokenizer, batch_size):
         tokenizer = tokenizer,
     )
 
+    # Create DataLoader objects
     train_loader = DataLoader(train_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=True)
     dev_loader = DataLoader(dev_dataset, batch_size=int(batch_size/2), collate_fn=collate_fn)
+
     print('\tTrain and Dev DataLoader initializated')
     
     return train_loader, dev_loader
@@ -407,8 +521,21 @@ def get_train_dev_dataloader(tokenizer, batch_size):
 
 
 def get_test_dataloader(tokenizer, batch_size):
-    test_raw = get_test_rawset()  # You'll need to implement this to load your test data JSON
+    """
+    Creates a DataLoader object for the test dataset.
 
+    Args:
+        tokenizer (transformers.PreTrainedTokenizer): Tokenizer to encode text.
+        batch_size (int): Number of samples per batch.
+
+    Returns:
+        test_loader (DataLoader): PyTorch DataLoader for the test set.
+    """
+
+    # Load raw JSON data for testing
+    test_raw = get_test_rawset()  
+
+    # Load language object to retrieve padding token IDs
     lang = Lang.load_from_file()
     words_pad = lang.words_pad_token_id
     slots_pad = lang.slots_pad_token_id
@@ -416,11 +543,13 @@ def get_test_dataloader(tokenizer, batch_size):
     # Use the same collate function with dynamic padding tokens
     collate_fn = collate_fn_factory(words_pad, slots_pad)
 
+    # Create Dataset object for test
     test_dataset = AtisDataset(
         records=test_raw,
         tokenizer=tokenizer,
     )
 
+    # Create DataLoader object (no shuffling for test)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, collate_fn=collate_fn, shuffle=False)
 
     print('\tTest DataLoader initialized')
