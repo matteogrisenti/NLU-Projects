@@ -70,7 +70,7 @@ len_slot_list, len_intent_list = get_slots_intents_len()
 
 
 # ----------------------------------------- TRAINING ------------------------------------------------------
-''' 
+
 BATCH_SIZES = [ 16, 32, 64 ]
 DROPOUTS = [ 0.1, 0.15 ]
 LEARNING_RATES = 0.00001
@@ -127,3 +127,4 @@ criterion_slots = nn.CrossEntropyLoss(ignore_index=SLOTS_PAD_TOKEN)
 criterion_intents = nn.CrossEntropyLoss()
 
 test(model, hyperparameters, name, criterion_slots, criterion_intents)
+''' 
