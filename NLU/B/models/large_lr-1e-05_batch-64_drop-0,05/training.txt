@@ -1,0 +1,53 @@
+Epoch 1 | Dev Slot F1: 0.4807 | Intent Acc: 0.8835
+New best F1: 0.4807
+Epoch 2 | Dev Slot F1: 0.8258 | Intent Acc: 0.9639
+New best F1: 0.8258
+Epoch 3 | Dev Slot F1: 0.8887 | Intent Acc: 0.9759
+New best F1: 0.8887
+Epoch 4 | Dev Slot F1: 0.9342 | Intent Acc: 0.9819
+New best F1: 0.9342
+Epoch 5 | Dev Slot F1: 0.9462 | Intent Acc: 0.9839
+New best F1: 0.9462
+Epoch 6 | Dev Slot F1: 0.9607 | Intent Acc: 0.9839
+New best F1: 0.9607
+Epoch 7 | Dev Slot F1: 0.9634 | Intent Acc: 0.9880
+New best F1: 0.9634
+Epoch 8 | Dev Slot F1: 0.9675 | Intent Acc: 0.9920
+New best F1: 0.9675
+Epoch 9 | Dev Slot F1: 0.9708 | Intent Acc: 0.9920
+New best F1: 0.9708
+Epoch 10 | Dev Slot F1: 0.9711 | Intent Acc: 0.9920
+New best F1: 0.9711
+Epoch 11 | Dev Slot F1: 0.9773 | Intent Acc: 0.9920
+New best F1: 0.9773
+Epoch 12 | Dev Slot F1: 0.9767 | Intent Acc: 0.9920
+Epoch 13 | Dev Slot F1: 0.9784 | Intent Acc: 0.9920
+New best F1: 0.9784
+Epoch 14 | Dev Slot F1: 0.9799 | Intent Acc: 0.9920
+New best F1: 0.9799
+Epoch 15 | Dev Slot F1: 0.9794 | Intent Acc: 0.9900
+Epoch 16 | Dev Slot F1: 0.9793 | Intent Acc: 0.9920
+Epoch 17 | Dev Slot F1: 0.9802 | Intent Acc: 0.9920
+New best F1: 0.9802
+Epoch 18 | Dev Slot F1: 0.9808 | Intent Acc: 0.9920
+New best F1: 0.9808
+Epoch 19 | Dev Slot F1: 0.9814 | Intent Acc: 0.9920
+New best F1: 0.9814
+Epoch 20 | Dev Slot F1: 0.9829 | Intent Acc: 0.9920
+New best F1: 0.9829
+Epoch 21 | Dev Slot F1: 0.9826 | Intent Acc: 0.9920
+Epoch 22 | Dev Slot F1: 0.9841 | Intent Acc: 0.9920
+New best F1: 0.9841
+Epoch 23 | Dev Slot F1: 0.9826 | Intent Acc: 0.9920
+Epoch 24 | Dev Slot F1: 0.9852 | Intent Acc: 0.9920
+New best F1: 0.9852
+Epoch 25 | Dev Slot F1: 0.9835 | Intent Acc: 0.9920
+Epoch 26 | Dev Slot F1: 0.9838 | Intent Acc: 0.9920
+Epoch 27 | Dev Slot F1: 0.9826 | Intent Acc: 0.9900
+Early stopping triggered.
+	Training data saved to: models/large_lr-1e-05_batch-64_drop-0,05/training_data.json
+	Development results saved to: models/large_lr-1e-05_batch-64_drop-0,05/dev_data.json
+	Results saved to results/dev.csv
+	Saving model to bin/others/large_lr-1e-05_batch-64_drop-0,05.pt:
+		BERT type: bert-large-uncased, num_intent_labels: 26, num_slot_labels: 130
+Training completed.

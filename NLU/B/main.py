@@ -19,8 +19,8 @@ PATIENTE = 3
 CLIP = 5
 DEVICE = 'cuda:0'
 
-# tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")  # Download the tokenizer
-tokenizer = BertTokenizer.from_pretrained("bert-large-uncased")  # Download the tokenizer
+tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")  # Download the tokenizer
+# tokenizer = BertTokenizer.from_pretrained("bert-large-uncased")  # Download the tokenizer
 
 
 # Uncomment this line once to initialize dataset structure and vocab:
@@ -71,16 +71,15 @@ len_slot_list, len_intent_list = get_slots_intents_len()
 
 # ----------------------------------------- TRAINING ------------------------------------------------------
 
-BATCH_SIZES = [ 16, 32, 64 ]
-DROPOUTS = [ 0.1, 0.15 ]
-LEARNING_RATES = 0.00001
-
+BATCH_SIZES = [ 128, 64, 32 ]
+DROPOUTS = [ 0.2, 0.3, 0.05 ]
+LEARNING_RATES = 0.0001
 
 for do in DROPOUTS:
     for bs in BATCH_SIZES:
         # Define fixed hyperparameters for training
         hyperparameters = {
-            'bert_type' : 'bert-large-uncased',
+            'bert_type' : 'bert-base-uncased',
             'learning_rate': LEARNING_RATES, 
             'batch_size': bs, 
             'dropout' : do,
@@ -90,7 +89,7 @@ for do in DROPOUTS:
 
         # Generate a unique model name based on hyperparameters
         name = model_name(hyperparameters['bert_type'], hyperparameters['learning_rate'], 
-                        hyperparameters['batch_size'], hyperparameters['dropout']) 
+                        hyperparameters['batch_size'], hyperparameters['dropout'] ) 
 
         # Instantiate the model
         model = BertIntentSlot(hyperparameters['bert_type'], hyperparameters['num_intents_label'],

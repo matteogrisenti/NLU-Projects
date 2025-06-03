@@ -1,17 +1,26 @@
-Epoch 1 | Dev Slot F1: 0.9447 | Intent Acc: 0.9859
-New best F1: 0.9447
-Epoch 2 | Dev Slot F1: 0.9605 | Intent Acc: 0.9779
-New best F1: 0.9605
-Epoch 3 | Dev Slot F1: 0.9682 | Intent Acc: 0.9900
-New best F1: 0.9682
-Epoch 4 | Dev Slot F1: 0.9587 | Intent Acc: 0.9900
-Epoch 5 | Dev Slot F1: 0.9776 | Intent Acc: 0.9940
-New best F1: 0.9776
-Epoch 6 | Dev Slot F1: 0.9841 | Intent Acc: 0.9940
-New best F1: 0.9841
-Epoch 7 | Dev Slot F1: 0.9741 | Intent Acc: 0.9960
-Epoch 8 | Dev Slot F1: 0.9782 | Intent Acc: 0.9880
-Epoch 9 | Dev Slot F1: 0.9794 | Intent Acc: 0.9880
+Epoch 1 | Dev Slot F1: 0.9455 | Intent Acc: 0.9839
+New best F1: 0.9455
+Epoch 2 | Dev Slot F1: 0.9564 | Intent Acc: 0.9799
+New best F1: 0.9564
+Epoch 3 | Dev Slot F1: 0.9649 | Intent Acc: 0.9880
+New best F1: 0.9649
+Epoch 4 | Dev Slot F1: 0.9723 | Intent Acc: 0.9839
+New best F1: 0.9723
+Epoch 5 | Dev Slot F1: 0.9770 | Intent Acc: 0.9940
+New best F1: 0.9770
+Epoch 6 | Dev Slot F1: 0.9796 | Intent Acc: 0.9859
+New best F1: 0.9796
+Epoch 7 | Dev Slot F1: 0.9791 | Intent Acc: 0.9920
+Epoch 8 | Dev Slot F1: 0.9803 | Intent Acc: 0.9940
+New best F1: 0.9803
+Epoch 9 | Dev Slot F1: 0.9808 | Intent Acc: 0.9900
+New best F1: 0.9808
+Epoch 10 | Dev Slot F1: 0.9782 | Intent Acc: 0.9880
+Epoch 11 | Dev Slot F1: 0.9829 | Intent Acc: 0.9900
+New best F1: 0.9829
+Epoch 12 | Dev Slot F1: 0.9820 | Intent Acc: 0.9920
+Epoch 13 | Dev Slot F1: 0.9805 | Intent Acc: 0.9940
+Epoch 14 | Dev Slot F1: 0.9785 | Intent Acc: 0.9920
 Early stopping triggered.
 	Training data saved to: models/base_lr-0,0001_batch-32_drop-0,1/training_data.json
 	Development results saved to: models/base_lr-0,0001_batch-32_drop-0,1/dev_data.json

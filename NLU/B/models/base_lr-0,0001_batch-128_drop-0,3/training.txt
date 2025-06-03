@@ -1,30 +1,24 @@
-Epoch 1 | Dev Slot F1: 0.8855 | Intent Acc: 0.9598
-New best F1: 0.8855
-Epoch 2 | Dev Slot F1: 0.9372 | Intent Acc: 0.9859
-New best F1: 0.9372
-Epoch 3 | Dev Slot F1: 0.9631 | Intent Acc: 0.9900
-New best F1: 0.9631
-Epoch 4 | Dev Slot F1: 0.9694 | Intent Acc: 0.9900
-New best F1: 0.9694
-Epoch 5 | Dev Slot F1: 0.9758 | Intent Acc: 0.9880
-New best F1: 0.9758
-Epoch 6 | Dev Slot F1: 0.9782 | Intent Acc: 0.9960
-New best F1: 0.9782
-Epoch 7 | Dev Slot F1: 0.9796 | Intent Acc: 0.9940
-New best F1: 0.9796
-Epoch 8 | Dev Slot F1: 0.9796 | Intent Acc: 0.9940
-Epoch 9 | Dev Slot F1: 0.9793 | Intent Acc: 0.9940
-Epoch 10 | Dev Slot F1: 0.9817 | Intent Acc: 0.9960
-New best F1: 0.9817
-Epoch 11 | Dev Slot F1: 0.9802 | Intent Acc: 0.9900
-Epoch 12 | Dev Slot F1: 0.9823 | Intent Acc: 0.9900
-New best F1: 0.9823
-Epoch 13 | Dev Slot F1: 0.9823 | Intent Acc: 0.9900
-Epoch 14 | Dev Slot F1: 0.9826 | Intent Acc: 0.9920
+Epoch 1 | Dev Slot F1: 0.8659 | Intent Acc: 0.9558
+New best F1: 0.8659
+Epoch 2 | Dev Slot F1: 0.9385 | Intent Acc: 0.9900
+New best F1: 0.9385
+Epoch 3 | Dev Slot F1: 0.9596 | Intent Acc: 0.9859
+New best F1: 0.9596
+Epoch 4 | Dev Slot F1: 0.9641 | Intent Acc: 0.9859
+New best F1: 0.9641
+Epoch 5 | Dev Slot F1: 0.9717 | Intent Acc: 0.9900
+New best F1: 0.9717
+Epoch 6 | Dev Slot F1: 0.9784 | Intent Acc: 0.9859
+New best F1: 0.9784
+Epoch 7 | Dev Slot F1: 0.9764 | Intent Acc: 0.9859
+Epoch 8 | Dev Slot F1: 0.9808 | Intent Acc: 0.9920
+New best F1: 0.9808
+Epoch 9 | Dev Slot F1: 0.9782 | Intent Acc: 0.9900
+Epoch 10 | Dev Slot F1: 0.9826 | Intent Acc: 0.9900
 New best F1: 0.9826
-Epoch 15 | Dev Slot F1: 0.9823 | Intent Acc: 0.9920
-Epoch 16 | Dev Slot F1: 0.9805 | Intent Acc: 0.9920
-Epoch 17 | Dev Slot F1: 0.9808 | Intent Acc: 0.9920
+Epoch 11 | Dev Slot F1: 0.9817 | Intent Acc: 0.9900
+Epoch 12 | Dev Slot F1: 0.9805 | Intent Acc: 0.9880
+Epoch 13 | Dev Slot F1: 0.9808 | Intent Acc: 0.9940
 Early stopping triggered.
 	Training data saved to: models/base_lr-0,0001_batch-128_drop-0,3/training_data.json
 	Development results saved to: models/base_lr-0,0001_batch-128_drop-0,3/dev_data.json

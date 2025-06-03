@@ -19,7 +19,7 @@ from utils import Lang
 
 
 
-def model_name(bert_type, lr, batch_size, dropout):
+def model_name(bert_type, lr, batch_size, dropout, alpha = None):
 
      # Format bert type 
     if bert_type == 'bert-base-uncased':
@@ -32,6 +32,10 @@ def model_name(bert_type, lr, batch_size, dropout):
     name = f"{label}_lr-{str(lr).replace('.', ',')}_batch-{batch_size}"
     if dropout is not None:
         name += f"_drop-{str(dropout).replace('.', ',')}"
+
+    if alpha is not None:
+        name += f"_alpha-{str(alpha).replace('.', ',')}"
+
     return name
 
 
@@ -161,7 +165,7 @@ def save_dev_results(dev_results, name):
 
 
 
-def train_loop(data, optimizer, criterion_slots, criterion_intents, model, device, clip=5):
+def train_loop(data, optimizer, criterion_slots, criterion_intents, model, device, clip=5, alpha = None):
     """
     Trains the model for one epoch.
 
@@ -221,13 +225,13 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
         loss_slot = criterion_slots(slot_logits_flat, slot_labels_flat)
 
         # Total loss (equal weight)
-        loss = loss_intent + loss_slot
+        if alpha is None:
+            loss = loss_intent + loss_slot
+        else:
+            loss = alpha * loss_intent + (1 - alpha) * loss_slot
+        
         loss_array.append(loss.item())      # Save the loss value for logging/plotting
-
-        # Optional question: Is there another way to combine these losses?
-        # Yes! For example:
-        # - Weighted sum: loss = α * loss_intent + β * loss_slot
-        # - Task-specific weighting or dynamic loss balancing methods                          
+                         
 
         # Backward pass: compute gradients
         loss.backward() 
@@ -243,7 +247,7 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, devic
 
 
 
-def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device):
+def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device, alpha=None):
     """
     Evaluation loop over the dataset. Computes loss and metrics for intent classification
     and slot filling tasks.
@@ -306,7 +310,12 @@ def eval_loop(data, tokenizer, criterion_slots, criterion_intents, model, device
             # Compute losses
             loss_intent = criterion_intents(intent_logits, intent_labels)
             loss_slot = criterion_slots(slot_logits_flat, slot_labels_flat)
-            loss = loss_intent + loss_slot
+            
+            if alpha is None:
+                loss = loss_intent + loss_slot
+            else:
+                loss = alpha * loss_intent + (1 - alpha) * loss_slot
+
             loss_array.append(loss.item())
 
             # --- Intent predictions ---
@@ -479,19 +488,21 @@ def train_model(
 
             # Define the optimizer 
             optimizer = optim.Adam(model.parameters(), lr=hyperparameters['learning_rate'])
+            
+            alpha = hyperparameters.get('alpha', None)
 
             for epoch in tqdm(range(1, n_epochs + 1)):
 
                 # Training step
                 model.train()
-                loss = train_loop(train_loader, optimizer, criterion_slots, criterion_intents, model, device, clip=clip)
+                loss = train_loop(train_loader, optimizer, criterion_slots, criterion_intents, model, device, clip=clip, alpha=alpha)
                 losses_train.append(np.mean(loss))
 
                 # Evaluation step
                 sampled_epochs.append(epoch)
 
                 model.eval()
-                results_dev, intent_res, loss_dev = eval_loop(dev_loader, tokenizer, criterion_slots, criterion_intents, model, device)
+                results_dev, intent_res, loss_dev = eval_loop(dev_loader, tokenizer, criterion_slots, criterion_intents, model, device, alpha=alpha)
                 losses_dev.append(np.mean(loss_dev))
 
                 current_f1 = results_dev['total']['f']
@@ -676,7 +687,8 @@ def test_model(
     # Set model to evaluation mode
     model.eval()
 
-    results_test, intent_test, _ = eval_loop(test_loader, tokenizer, criterion_slots, criterion_intents, model, device)
+    alpha = hyperparameters.get('alpha', None)
+    results_test, intent_test, _ = eval_loop(test_loader, tokenizer, criterion_slots, criterion_intents, model, device, alpha=alpha)
 
     save_test_results(results_test, intent_test, model_name)
     # Save the dev results in a CSV file
