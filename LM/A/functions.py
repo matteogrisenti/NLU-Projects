@@ -408,7 +408,7 @@ def save_dev_results(hyperparameters, epoche, ppl, ci_ppl):
 
     # If the file does not exist, create it and write the header
     with open(filename, 'a') as f:
-        f.write(f'{experiment_id},{label},{n_layers},{hid_size},{emb_size},{lr},{batch_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(ppl, 2)},{round(ci_ppl, 2)}\n')
+        f.write(f'{experiment_id},{label},{n_layers},{hid_size},{emb_size},{lr},{batch_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
 
 
 
