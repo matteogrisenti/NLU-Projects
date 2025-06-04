@@ -1,4 +1,5 @@
 import os
+import torch
 import torch.nn as nn
 
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
@@ -18,6 +19,8 @@ N_EPOCHES = 40
 PATIENTE = 3
 CLIP = 5
 DEVICE = 'cuda:0'
+
+print(f'CUDA device is avaiable - {torch.cuda.is_available()}')
 
 tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")  # Download the tokenizer
 # tokenizer = BertTokenizer.from_pretrained("bert-large-uncased")  # Download the tokenizer
@@ -68,7 +71,7 @@ def test(model, hyperparameters, name, criterion_slots, criterion_intents):
 # Retrieve the number of unique slot labels and intent labels
 len_slot_list, len_intent_list = get_slots_intents_len()
 
-
+''' 
 # ----------------------------------------- TRAINING ------------------------------------------------------
 
 BATCH_SIZES = [ 128, 64, 32 ]
@@ -104,26 +107,42 @@ for do in DROPOUTS:
 
 
 # ------------------------------------------ TESTING ------------------------------------------------------
-# Define fixed hyperparameters of the model to be tested
-hyperparameters = {
-    'bert_type' : 'bert-large-uncased',
-    'learning_rate': 0.00001, 
-    'batch_size': 64, 
-    'dropout' : 0.15,
+# Define fixed hyperparameters of the models to be tested
+base = {
+    'bert_type' : 'bert-base-uncased',
+    'learning_rate': 0.0001, 
+    'batch_size': 128, 
+    'dropout' : 0.2,
     'num_slots_label': len_slot_list,
     'num_intents_label': len_intent_list
 }
 
-# Retrive the model name based on hyperparameters
-name = model_name(hyperparameters['bert_type'], hyperparameters['learning_rate'], 
-                        hyperparameters['batch_size'], hyperparameters['dropout']) 
+large = {
+    'bert_type' : 'bert-large-uncased',
+    'learning_rate': 0.00001, 
+    'batch_size': 64, 
+    'dropout' : 0.1,
+    'num_slots_label': len_slot_list,
+    'num_intents_label': len_intent_list,
+    'alpha': 0.3
+}
 
-# Initialize the model structure to be tested ( the weight were updated with the data saved in the bin )
-model = BertIntentSlot(hyperparameters['bert_type'], hyperparameters['num_intents_label'],
-                    hyperparameters['num_slots_label'], hyperparameters['dropout'])
+models = [large, base]
 
-criterion_slots = nn.CrossEntropyLoss(ignore_index=SLOTS_PAD_TOKEN)
-criterion_intents = nn.CrossEntropyLoss()
+for hyperparameters in models: 
 
-test(model, hyperparameters, name, criterion_slots, criterion_intents)
-''' 
+    # Get alpha value if there is, otherway set to None
+    alpha = hyperparameters.get('alpha', None)
+
+    # Retrive the model name based on hyperparameters
+    name = model_name(hyperparameters['bert_type'], hyperparameters['learning_rate'], 
+                      hyperparameters['batch_size'], hyperparameters['dropout'], alpha = alpha) 
+
+    # Initialize the model structure to be tested ( the weight were updated with the data saved in the bin )
+    model = BertIntentSlot(hyperparameters['bert_type'], hyperparameters['num_intents_label'],
+                           hyperparameters['num_slots_label'], hyperparameters['dropout'])
+
+    criterion_slots = nn.CrossEntropyLoss(ignore_index=SLOTS_PAD_TOKEN)
+    criterion_intents = nn.CrossEntropyLoss()
+
+    test(model, hyperparameters, name, criterion_slots, criterion_intents)

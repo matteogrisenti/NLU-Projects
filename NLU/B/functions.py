@@ -672,12 +672,13 @@ def test_model(
     # Set default device if not provided
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
     old_path = os.path.join('bin', 'others', f"{model_name}.pt")
     new_path = os.path.join('bin', f"{model_name}.pt")
 
-    # Move the file if it hasn't been moved already
+    # Copy the file if it hasn't been copied already
     if os.path.exists(old_path) and not os.path.exists(new_path):
-        shutil.move(old_path, new_path)
+        shutil.copyfile(old_path, new_path)
 
     # Load saved weights into model
     checkpoint = torch.load(new_path, weights_only=False)
