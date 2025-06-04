@@ -1,7 +1,11 @@
 import os
 import json
+import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from io import StringIO
+
 
 
 def save_plot(model_name, plot_name):
@@ -151,9 +155,85 @@ def plot_all(model_name):
     print(f"Plots saved in models/{model_name}/plots/")
 
 
-# plot_all('SimpleIAS_lr-0,0001_hid-200_emb-300_batch-128_layers-1')
-# plot_all('SimpleIAS_lr-0,001_hid-200_emb-300_batch-128_layers-1')
 
-# plot_all('Bidirectional_lr-0,001_hid-600_emb-900_batch-128_layers-1')
-# plot_all('Bidirectional_lr-0,001_hid-400_emb-600_batch-128_layers-1')
-# plot_all('Bidirectional_lr-0,001_hid-200_emb-300_batch-128_layers-1')
+
+def plot_slot_and_intent_errorbars_with_new_data(
+    save_path_slot="plots/SlotF1ErrorBars.png",
+    save_path_intent="plots/IntentAccErrorBars.png"
+):
+    # Dati hardcoded in formato CSV-like
+    data = """
+    label,learning_rate,n_layers,hidden_size,embedding_size,batch_size,dropout,slot_f1,95% CI,intent_acc,95% CI (beta)
+SimpleIAS,0.001,1,200,300,128,,0.9253,0.9156 - 0.935,0.9272,0.9083 - 0.9424
+Bidirectional,0.001,1,600,900,128,,0.948,0.9398 - 0.9561,0.944,0.9269 - 0.9572
+Dropout,0.001,2,600,900,32,0.5,0.9526,0.9448 - 0.9604,0.9619,0.9473 - 0.9726
+    """
+
+    # Carico i dati in un DataFrame
+    df = pd.read_csv(StringIO(data.strip()))
+
+    # Converto le metriche a float
+    df['slot_f1'] = df['slot_f1'].astype(float)
+    df['intent_acc'] = df['intent_acc'].astype(float)
+
+    # Funzione per parsare gli intervalli di confidenza
+    def parse_ci(ci_str):
+        lower, upper = map(float, ci_str.replace(" ", "").split('-'))
+        mean = (lower + upper) / 2
+        error = upper - mean
+        return mean, error
+
+    # Estrai Slot F1 e CI
+    slot_means = df['slot_f1'].tolist()
+    slot_errors = [parse_ci(ci)[1] for ci in df['95% CI']]
+    
+    # Estrai Intent Accuracy e CI
+    intent_means = df['intent_acc'].tolist()
+    intent_errors = [parse_ci(ci)[1] for ci in df['95% CI (beta)']]
+
+    labels = df['label'].tolist()
+    x = np.arange(len(df))
+    bar_width = 0.6
+
+    # --- Plot Slot F1 ---
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.bar(x, slot_means, bar_width, yerr=slot_errors, capsize=5, color='lightgreen', align='center')
+    ax.set_ylabel('Slot F1 Score', fontsize=14)
+    ax.set_title('Slot F1 Scores with 95% Confidence Interval', fontsize=16)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=14)
+    ax.tick_params(axis='y', labelsize=14)
+    ax.set_ylim(0.91, 0.965)
+
+    custom_legend = [
+        Line2D([0], [0], color='lightgreen', lw=10, label='Model'),
+        Line2D([0], [0], color='black', lw=2, label='95% CI'),
+    ]
+
+    ax.legend(handles=custom_legend, fontsize=12)
+    plt.tight_layout()
+    plt.savefig(save_path_slot)
+    plt.close()
+
+    # --- Plot Intent Accuracy ---
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.bar(x, intent_means, bar_width, yerr=intent_errors, capsize=5, color='purple')
+    ax.set_ylabel('Intent Accuracy', fontsize=14)
+    ax.set_title('Intent Accuracy with 95% Confidence Interval', fontsize=16)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=14)
+    ax.tick_params(axis='y', labelsize=14)
+    ax.set_ylim(0.9, 0.975)
+
+    custom_legend = [
+        Line2D([0], [0], color='purple', lw=10, label='Model'),
+        Line2D([0], [0], color='black', lw=2, label='95% CI'),
+    ]
+    ax.legend(handles=custom_legend, fontsize=12)
+    plt.tight_layout()
+    plt.savefig(save_path_intent)
+    plt.close()
+
+
+
+plot_slot_and_intent_errorbars_with_new_data()

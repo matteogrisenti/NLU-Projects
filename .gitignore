@@ -14,3 +14,5 @@ __pycache__/
 
 # other files
 /NLU/B/bin/others
+/LM/A/bin/others
+/LM/B/bin/others

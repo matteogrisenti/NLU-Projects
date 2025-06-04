@@ -137,5 +137,98 @@ def plot_heatmap_with_annotations():
     plt.close()
 
 
+
+
+def plot_slot_intent_with_ci():
+    # Raw data
+    data = [
+        {"label": "SimpleIAS", "slot_f1": 0.9253, "slot_ci": "0.9156 - 0.935", "intent_acc": 0.9272, "intent_ci": "0.9083 - 0.9424"},
+        {"label": "Bidirectional", "slot_f1": 0.948, "slot_ci": "0.9398 - 0.9561", "intent_acc": 0.944, "intent_ci": "0.9269 - 0.9572"},
+        {"label": "Dropout", "slot_f1": 0.9526, "slot_ci": "0.9448 - 0.9604", "intent_acc": 0.9619, "intent_ci": "0.9473 - 0.9726"},
+        {"label": "Bert Base", "slot_f1": 0.9555, "slot_ci": "0.9479 - 0.9631", "intent_acc": 0.9765, "intent_ci": "0.9643 - 0.9845"},
+        {"label": "Bert Large", "slot_f1": 0.9581, "slot_ci": "0.9507 - 0.9655", "intent_acc": 0.9765, "intent_ci": "0.9643 - 0.9845"},
+    ]
+
+    df = pd.DataFrame(data)
+
+    label_colors = {
+        "SimpleIAS": (222, 226, 230),        
+        "Bidirectional": (246, 189, 96),  
+        "Dropout": (166, 225, 250),          
+        "Bert Base": (251, 184, 221),         
+        "Bert Large": (220, 238, 209),           
+    }
+
+    # Parse CI
+    df[['slot_ci_lower', 'slot_ci_upper']] = df['slot_ci'].str.split(' - ', expand=True).astype(float)
+    df[['intent_ci_lower', 'intent_ci_upper']] = df['intent_ci'].str.split(' - ', expand=True).astype(float)
+
+    df['slot_err_lower'] = df['slot_f1'] - df['slot_ci_lower']
+    df['slot_err_upper'] = df['slot_ci_upper'] - df['slot_f1']
+    df['intent_err_lower'] = df['intent_acc'] - df['intent_ci_lower']
+    df['intent_err_upper'] = df['intent_ci_upper'] - df['intent_acc']
+
+    # Convert RGB 0-255 to 0-1
+    def rgb_to_mpl(rgb):
+        return tuple([v / 255 for v in rgb])
+
+    # Plot Slot F1
+    plt.figure(figsize=(10, 5))
+    x_positions = range(len(df))  # Numeric x for plotting
+
+    for i, row in df.iterrows():
+        label = row['label']
+        color = rgb_to_mpl(label_colors.get(label, (0, 0, 0)))  # Default black
+        x = x_positions[i]
+        y = row.slot_f1
+
+        plt.errorbar(label, row['slot_f1'],
+                     yerr=[[row['slot_err_lower']], [row['slot_err_upper']]],
+                     fmt='o',
+                     capsize=5,
+                     linewidth=2,
+                     markersize=16,
+                     color=color,
+                     ecolor='black',
+                     markeredgecolor='black',
+                     markeredgewidth=1.5)
+    
+    plt.title('Slot F1 Score with 95% Confidence Intervals')
+    plt.ylabel('Slot F1 Score')
+    plt.ylim(0.9, 1.0)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig('plots/slot_plot.png', dpi=300)
+    plt.close()
+
+    # Plot Intent Accuracy
+    plt.figure(figsize=(10, 5))
+    for i, row in df.iterrows():
+        label = row['label']
+        color = rgb_to_mpl(label_colors.get(label, (0, 0, 0)))
+        x = x_positions[i]
+        y = row.intent_acc
+
+        plt.errorbar(label, row['intent_acc'],
+                     yerr=[[row['intent_err_lower']], [row['intent_err_upper']]],
+                     fmt='o',
+                     capsize=5,
+                     linewidth=2,
+                     markersize=16,
+                     color=color,
+                     ecolor='black',
+                     markeredgecolor='black',
+                     markeredgewidth=1.5)
+
+    plt.title('Intent Accuracy with 95% Confidence Intervals')
+    plt.ylabel('Intent Accuracy')
+    plt.ylim(0.9, 1.0)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig('plots/intent_plot.png', dpi=300)
+    plt.close()
+
+
 # Call the function
 # plot_heatmap_with_annotations()
+plot_slot_intent_with_ci()
