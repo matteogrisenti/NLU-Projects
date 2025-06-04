@@ -7,7 +7,7 @@ import numpy as np
 
 
 class LM_RNN(nn.Module):
-    def __init__(self, emb_size, hidden_size, output_size, pad_index=0, out_dropout=0.1, emb_dropout=0.1, n_layers=1):
+    def __init__(self, emb_size, hidden_size, output_size, pad_index=0, n_layers=1):
         super(LM_RNN, self).__init__()
         # This Model learn: 
         # 1. The embedding layer that maps the token ids to vectors

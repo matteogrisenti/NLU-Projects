@@ -1,80 +1,60 @@
 import torch
-from utils import read_file, Lang, PennTreeBank
-from functions import train_model
+
+from model import LM_RNN, LM_LSTM, LM_LSTM_DO
+from utils import read_file, init_lang, Lang, PennTreeBank
+from functions import train_model, init_weights
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device: ", DEVICE)
 
 
-
-# --------------------------------------------- DATASET MANAGEMENT ----------------------------------------------
-train_raw = read_file("dataset/PennTreeBank/ptb.train.txt")
-dev_raw = read_file("dataset/PennTreeBank/ptb.valid.txt")
-test_raw = read_file("dataset/PennTreeBank/ptb.test.txt")
-
-lang = Lang(train_raw, ["<pad>", "<eos>"])
-
-train_dataset = PennTreeBank(train_raw, lang)
-dev_dataset   = PennTreeBank(dev_raw, lang)
-test_dataset  = PennTreeBank(test_raw, lang)
-
-print("DATASET:")
-print("\tTrain dataset size: ", len(train_dataset))
-print("\tDev dataset size: ", len(dev_dataset))
-print("\tTest dataset size: ", len(test_dataset))
-print("\tVocab size: ", len(lang.word2id))
-
-
-
-# --------------------------------------------  HYPERPARAMETERS ------------------------------------------------
-LABEL = 'ADAMW'      # RNN, LSTM
-BATCH_SIZE = 128     # Original 64
-HID_SIZE = [200]                            # Original 200
-EMB_SIZE = [300]                            # Original 300
-N_LAYERS = [4,5]                            # Original 1
-DROPOUT_EMB = 0.5
-DROPOUT_OUT = 0.5
-LR = 0.001
-OPTIMIZER = 'AdamW' # SGD or Adam
-CLIP = 5            # Clip the gradient -> avoid exploding gradients
-
+# Uncomment this line once to initialize dataset structure and vocab:
+# It creates a dev set from the original train data and saves global slot/intent mappings
+init_lang()
 
 
 # -------------------------------------------- TRAINING ------------------------------------------------
-for j in range(len(N_LAYERS)):
-    n_layers = N_LAYERS[j]
-    for i in range(len(EMB_SIZE)):
-        #d o_emb = DROPOUT_EMB[i]
-        # do_out = DROPOUT_OUT[i]
-        # lr = LR[i]
-        # batchsize = BATCH_SIZE[i]
-        hid_size = HID_SIZE[i]
-        emb_size = EMB_SIZE[i]
+#  HYPERPARAMETERS 
+LABEL = 'ADAMW'      # RNN, LSTM, ADAMW
+BATCH_SIZE = 128     # Original 64
+HID_SIZE = 200                            # Original 200
+EMB_SIZE = 300                            # Original 300
+N_LAYERS = 1                              # Original 1
+DROPOUT_EMB = None
+DROPOUT_OUT = None
+LR = [5,1,0.1]
+OPTIMIZER = 'SGD'   # SGD or AdamW
+CLIP = 5            # Clip the gradient -> avoid exploding gradients
 
+lang = Lang.load_from_file()        
+vocab_len = len(lang.word2id)           # Compute the Vocabular Len to understand the dimension of the Linear layer
+pad_index = lang.word2id["<pad>"]       # Get the ID of the pad token 
 
-        # print("Training with learning rate: ", lr)
-        # print("Training with batch size: ", batchsize)
-        # print("Training with hidden size: ", hid_size)
-        print("Training with embedding size: ", emb_size)
-        # print("Training with hidden size: ", hid_size, " and embedding size: ", emb_size)
-        # print("Training with dropout embedding: ", do_emb, " and dropout output: ", do_out)
+for lr in LR:
 
-        train_model(
-            train_dataset,
-            dev_dataset,
-            test_dataset,
-            lang,
-            BATCH_SIZE=BATCH_SIZE,
-            HID_SIZE=hid_size,
-            EMB_SIZE=emb_size,
-            N_LAYERS=n_layers,
-            LR=LR,
-            DROPOUT_EMB=DROPOUT_EMB,
-            DROPOUT_OUT=DROPOUT_OUT,
-            CLIP=CLIP,
-            OPTIMIZER=OPTIMIZER,
-            DEVICE=DEVICE,
-            LABEL=LABEL
-        )
+    hyperparameters = {
+        'label': LABEL,
+        'batch_size': BATCH_SIZE, 
+        'hid_size': HID_SIZE,
+        'emb_size': EMB_SIZE,
+        'n_layers': N_LAYERS,
+        'dropout_emb': None,
+        'dropout_out': None,
+        'learning_rate': lr,
+        'optimizer': OPTIMIZER, 
+        'clip': 5
+    }
+
+    # Define the model to be trained
+    model = LM_RNN(hyperparameters['emb_size'], hyperparameters['hid_size'], vocab_len, 
+                    pad_index=pad_index ).to(DEVICE)
+    # model = LM_LSTM(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"], out_dropout=DROPOUT_OUT, emb_dropout=DROPOUT_EMB).to(DEVICE)
+    # model = LM_LSTM_DO(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"], out_dropout=DROPOUT_OUT, emb_dropout=DROPOUT_EMB, n_layers=N_LAYERS).to(DEVICE)
+    
+    # Initializa the weight of the model
+    model.apply(init_weights)
+    
+    # Train the model
+    train_model( model, hyperparameters, DEVICE )
 
