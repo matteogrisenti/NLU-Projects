@@ -1,4 +1,4 @@
-ID,Network Type, Layers, Hidden Size, Embedding Size, Learning Rate, Batch Size, Dropout Emb, Droput Out, Optimizer,Epoche, PPL, CI PPL Test1
+ID,Network Type,Layers,Hidden Size,Embedding Size,Learning Rate,Batch Size,Dropout Emb,Droput Out,Optimizer,Epoche,PPL, CI PPL 
 1,RNN,1,200,300,5,128,None,None,SGD,16,232.33,197.02-275.0
 2,RNN,1,200,300,1,128,None,None,SGD,36,164.44,139.29-194.92
 3,RNN,1,200,300,0.1,128,None,None,SGD,99,195.96,170.61-224.53
@@ -36,3 +36,5 @@ ID,Network Type, Layers, Hidden Size, Embedding Size, Learning Rate, Batch Size,
 32,ADAM,1,600,900,0.0005,128,0.7,0.7,AdamW,83,121.04,101.08-150.66
 33,ADAM,2,200,300,0.0005,128,0.5,0.5,AdamW,99,126.63,107.8-155.33
 34,ADAM,3,200,300,0.0005,128,0.5,0.5,AdamW,99,124.52,105.98-151.73
+35,ADAM,2,200,300,0.001,128,0.5,0.5,AdamW,97,120.63,101.33-149.88
+36,ADAM,3,200,300,0.001,128,0.5,0.5,AdamW,74,122.47,103.45-151.94

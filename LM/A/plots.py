@@ -240,16 +240,16 @@ def plot_ppl_heatmap(csv_path, selected_ids, save_path="Heatmap.png"):
     # Filter rows based on the selected experiment IDs
     df_filtered = df[df['ID'].isin(selected_ids)].copy()
 
-    # Ensure correct data types (no more warning)
-    df_filtered.loc[:, 'Learning Rate'] = df_filtered['Learning Rate'].astype(float)
-    df_filtered.loc[:, 'Batch Size'] = df_filtered['Batch Size'].astype(int)
-    df_filtered.loc[:, 'PPL Test'] = df_filtered['PPL Test'].astype(float)
+    # Ensure correct data types
+    df_filtered['Learning Rate'] = df_filtered['Learning Rate'].astype(float)
+    df_filtered['Batch Size'] = df_filtered['Batch Size'].astype(int)
+    df_filtered['PPL'] = df_filtered['PPL'].astype(float)
 
     # Pivot the data for heatmap plotting
     pivot_table = df_filtered.pivot_table(
         index='Learning Rate',
         columns='Batch Size',
-        values='PPL Test'
+        values='PPL'
     )
 
     # Sort axes for clearer visualization
@@ -258,34 +258,30 @@ def plot_ppl_heatmap(csv_path, selected_ids, save_path="Heatmap.png"):
 
     # Generate the heatmap
     plt.figure(figsize=(10, 6))
-    # Heatmap with green-to-red colors and larger axis labels
     ax = sns.heatmap(
         pivot_table,
         annot=True,
         fmt=".2f",
-        cmap="RdYlGn_r",             # green to red
+        cmap="RdYlGn_r",             # Green to red
         linewidths=.5,
         xticklabels=True,
         yticklabels=True,
         annot_kws={
-            "fontsize": 14,         # Font size
-            # "color": "white",       # Text color (puoi cambiare il colore)
-            "fontweight": "bold"    # Bold text
+            "fontsize": 14,
+            "fontweight": "bold"
         },
     )
 
-    # use matplotlib.colorbar.Colorbar object
+    # Customize color bar and axis labels
     cbar = ax.collections[0].colorbar
-    # here set the labelsize by 20
     cbar.ax.tick_params(labelsize=14)
-
-    # Set larger font size for axis labels
     plt.xticks(fontsize=16)
     plt.yticks(fontsize=16)
     plt.xlabel("Batch Size", fontsize=16)
     plt.ylabel("Learning Rate", fontsize=16)
     plt.tight_layout()
     plt.savefig(save_path)
+    plt.show()
 
 
 
@@ -380,6 +376,5 @@ def plot_ppl_by_batchsize_with_ci(csv_path, selected_ids, save_path="PPL_vs_Batc
 
 
 # -----------------------------------------  MAIN --------------------------------------------------
-filename = 'experiments.csv'
-plot_ppl_with_sem_ci_AdamW(filename, [26,27,28,29,30,31], save_path="AdamWDIM.png")
-
+filename = 'results/dev.csv'
+plot_ppl_heatmap(filename, [4,5,6,7,8,9,10,11,12,13,14,15])

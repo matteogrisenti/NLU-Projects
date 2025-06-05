@@ -19,14 +19,15 @@ pad_index = lang.word2id["<pad>"]       # Get the ID of the pad token
 
 
 ''' 
+
 # -------------------------------------------- TRAINING ------------------------------------------------
 #  HYPERPARAMETERS 
-LABEL = 'ADAM'      # RNN, LSTM, ADAMW
+LABEL = 'ADAM'       # RNN, LSTM, ADAMW
 BATCH_SIZE = 128     # Original 64
 HID_SIZE = 200                           # Original 200
 EMB_SIZE = 300                           # Original 300
 N_LAYERS = [2,3]                              # Original 1
-DROPOUT = 0.3
+DROPOUT = 0.5
 LR = 0.001
 OPTIMIZER = 'AdamW'   # SGD or AdamW
 CLIP = 5            # Clip the gradient -> avoid exploding gradients
@@ -59,6 +60,8 @@ for nl in N_LAYERS:
     
     # Train the model
     train_model( model, hyperparameters, DEVICE )
+
+
 '''
 
 # -------------------------------------------- TESTING ------------------------------------------------
@@ -125,7 +128,6 @@ model = LM_LSTM_DO(adam['emb_size'], adam['hid_size'], vocab_len,
                     pad_index=pad_index, out_dropout=adam['dropout_out'], 
                     emb_dropout=adam['dropout_emb'])
 test_model(model, adam, DEVICE)
-
 
 
 
