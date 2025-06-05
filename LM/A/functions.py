@@ -2,6 +2,7 @@ import math
 import copy
 import os
 import torch
+import shutil
 
 import numpy as np
 import torch.nn as nn
@@ -234,6 +235,7 @@ def save_model(model, path):
 
 
 
+
 # ------------------------------------------------------------------------------
 # Function: plot_training_progress
 #
@@ -295,39 +297,6 @@ def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_val
     filepath = os.path.join('plots', path + '.png')
     plt.savefig(filepath, dpi=300)
 
-def plot_training_progress_wnl(sampled_epochs, losses_train, losses_dev, ppl_dev_values, path='PLOT'):
-    
-    fig, axes = plt.subplots(2, 1, figsize=(8, 10))
-    font_size = 14  # Font size per labels, titoli, e legende
-
-    # Primo grafico: Loss Function
-    axes[0].plot(sampled_epochs, losses_train, linestyle='-', color='b', label='Training Loss')
-    axes[0].plot(sampled_epochs, losses_dev, linestyle='-', color='r', label='Validation Loss')
-    axes[0].set_xlabel('Epoche', fontsize=font_size)
-    axes[0].set_ylabel('Loss', fontsize=font_size)
-    axes[0].set_title('Loss Trend', fontsize=font_size + 2)
-    axes[0].legend(fontsize=font_size)
-    axes[0].grid(True, linestyle='--', alpha=0.6)
-    axes[0].tick_params(axis='both', labelsize=font_size)
-
-    # Secondo grafico: Perplexity
-    axes[1].plot(sampled_epochs, ppl_dev_values, marker='s', linestyle='-', color='g', label='Validation PPL')
-    axes[1].set_xlabel('Epoche', fontsize=font_size)
-    axes[1].set_ylabel('Perplexity (PPL)', fontsize=font_size)
-    axes[1].set_title('Perplexity Trend', fontsize=font_size + 2)
-    axes[1].legend(fontsize=font_size)
-    axes[1].grid(True, linestyle='--', alpha=0.6)
-    axes[1].tick_params(axis='both', labelsize=font_size)
-
-    axes[1].set_xlim(0, 100)
-    if max(ppl_dev_values) < 400:
-        y_max = max(400)
-        axes[1].set_ylim(50, y_max)
-
-    fig.subplots_adjust(hspace=0.4)
-
-    filepath = os.path.join('plots', path + '.png')
-    plt.savefig(filepath, dpi=300)
 
 
 
@@ -409,53 +378,6 @@ def save_dev_results(hyperparameters, epoche, ppl, ci_ppl):
     # If the file does not exist, create it and write the header
     with open(filename, 'a') as f:
         f.write(f'{experiment_id},{label},{n_layers},{hid_size},{emb_size},{lr},{batch_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
-
-
-
-
-# ------------------------------------------------------------------------------
-# Function: save_experiment_results
-#
-# Description:
-#     Appends a new row to the `experiments.csv` file, logging key details and
-#     evaluation metrics from a trained model experiment. This includes model
-#     configuration, optimizer, number of training epochs, and test set performance
-#     such as perplexity, normalized loss, standard error, and confidence intervals.
-#
-# Parameters:
-#     network_type (str): The type/name of the network architecture used.
-#     lr (float): Learning rate used during training.
-#     hidden_size (int): Size of the hidden layers in the model.
-#     emb_size (int): Dimensionality of the embedding layer.
-#     dropout_emb (float): Dropout rate applied to the embedding layer.
-#     dropout_out (float): Dropout rate applied to the output layer.
-#     optimizer (str): Optimizer used (e.g., 'Adam', 'SGD').
-#     epoche (int): Number of epochs the model was trained.
-#     test_ppl (float): Perplexity on the test set.
-#     lest_loss_norm (float): Normalized test loss.
-#     sem_loss (float): Standard Error of the Mean (SEM) for test loss.
-#     ci_loss (tuple): 95% Confidence Interval for test loss.
-#     sem_ppl (float): Standard Error of the Mean (SEM) for test perplexity.
-#     ci_ppl (tuple): 95% Confidence Interval for test perplexity.
-#
-# Behavior:
-#     - Automatically retrieves the last experiment ID and increments it.
-#     - Creates the CSV file with a header if it does not exist.
-#     - Appends all values (rounded to 2 decimals) to the file.
-#
-# Output:
-#     A new line is added to 'experiments.csv' recording the current experiment.
-# ------------------------------------------------------------------------------
-def save_experiment_results(network_type, lr, batch_size, hidden_size, emb_size, dropout_emb, dropout_out, 
-                            optimizer, epoche, test_ppl, lest_loss_norm, sem_loss, ci_loss, 
-                            sem_ppl, ci_ppl):
-    filename = 'experiments.csv'
-
-    experiment_id = get_last_experiment_id(filename) + 1    # Leggi l'ultimo ID
-
-    # If the file does not exist, create it and write the header
-    with open(filename, 'a') as f:
-        f.write(f'{experiment_id},{network_type},{lr},{batch_size},{hidden_size},{emb_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(test_ppl, 2)},{round(lest_loss_norm, 2)},{round(sem_loss, 2)},{round(ci_loss[0], 2)}-{round(ci_loss[1], 2)},{round(sem_ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
 
 
 
@@ -574,3 +496,114 @@ def train_model( model, hyperparameters, device):
 
     # save the evaluation performance
     save_dev_results(hyperparameters, last_epoch, best_ppl, best_ppl_ci)
+
+
+
+
+# ------------------------------------------------------------------------------
+# Function: save_test_results
+#
+# Description:
+#     Appends a new row to the `test.csv` file, logging key details and
+#     evaluation metrics from a trained model experiment. This includes model
+#     configuration, optimizer, number of training epochs, and test set performance
+#     such as perplexity, normalized loss, standard error, and confidence intervals.
+#
+# Parameters:
+#     hyperparameters: the hyperparameters configuration of the model to be trained
+#     epoche (int): Number of epochs the model was trained.
+#     ppl (float): Perplexity on the test set.
+#     ci_ppl (tuple): 95% Confidence Interval for test perplexity.
+#
+# Behavior:
+#     - Automatically retrieves the last experiment ID and increments it.
+#     - Creates the CSV file with a header if it does not exist.
+#     - Appends all values (rounded to 2 decimals) to the file.
+#
+# Output:
+#     A new line is added to 'test.csv' recording the current experiment.
+# ------------------------------------------------------------------------------
+def save_test_results(hyperparameters, epoche, ppl, ci_ppl):
+    filename = 'results/test.csv'
+
+    label = hyperparameters['label']
+    lr = hyperparameters['learning_rate']
+    hid_size = hyperparameters['hid_size']
+    emb_size = hyperparameters['emb_size']
+    batch_size = hyperparameters['batch_size']
+    n_layers = hyperparameters['n_layers']
+    dropout_emb = hyperparameters['dropout_emb']
+    dropout_out = hyperparameters['dropout_out']
+    optimizer = hyperparameters['optimizer']
+
+    experiment_id = get_last_experiment_id(filename) + 1    # Leggi l'ultimo ID
+
+    # If the file does not exist, create it and write the header
+    with open(filename, 'a') as f:
+        f.write(f'{experiment_id},{label},{n_layers},{hid_size},{emb_size},{lr},{batch_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
+
+
+
+
+# ------------------------------------------------------------------------------
+# Function: test_model
+#
+# Description:
+#     Evaluates a trained language model on the Penn Treebank test set.
+#     Loads the saved best model, processes the test data, computes loss,
+#     perplexity, and confidence intervals, and optionally saves the results.
+#
+# Parameters:
+#     model_class: the class of the model to be loaded (same as used during training)
+#     hyperparameters: dictionary of hyperparameters used during training
+#     device: the device (CPU/GPU) on which to run evaluation
+#
+# Behavior:
+#     - Loads the test dataset.
+#     - Loads the trained model from disk.
+#     - Runs evaluation to compute perplexity, total loss, and confidence interval.
+#     - Prints and saves results.
+# ------------------------------------------------------------------------------
+def test_model(model, hyperparameters, device):
+    print(f"\nTesting model: {hyperparameters['label']}")
+
+    # 1) Load the test dataset
+    test_raw = read_file("dataset/PennTreeBank/ptb.test.txt")
+    lang = Lang.load_from_file()
+    test_dataset = PennTreeBank(test_raw, lang)
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=hyperparameters['batch_size'] * 2,
+        collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], device=device)
+    )
+
+    # 2) Load the saved weight of the model
+    path = path_define(hyperparameters)     # compute the unique identifier path
+    old_path = os.path.join('bin', 'others', f"{path}.pt")
+    new_path = os.path.join('bin', f"{path}.pt")
+
+    # Copy the file if it hasn't been copied already
+    if os.path.exists(old_path) and not os.path.exists(new_path):
+        shutil.copyfile(old_path, new_path)
+
+    # Load saved weights into model
+    model.load_state_dict(torch.load(new_path, map_location=device))
+    model.eval()
+    
+    model.to(device)
+
+    # 3) Define evaluation criterion
+    criterion = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"], reduction='sum')
+
+    # 4) Evaluate the model
+    ppl_test, loss_test, _, _, _, ci_test = eval_loop(test_loader, criterion, model)
+
+    # 5) Output results
+    print(f"\n--- Test Results ---")
+    print(f"Perplexity     : {ppl_test:.4f}")
+    print(f"Loss           : {loss_test:.4f}")
+    print(f"Confidence Int.: {ci_test[0]:.4f} - {ci_test[1]:.4f}")
+
+    # 6) Save results
+    save_test_results(hyperparameters, ppl_test, loss_test, ci_test)
+
