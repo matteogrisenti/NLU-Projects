@@ -1,4 +1,4 @@
-ID,Network Type,Layers,Hidden Size,Embedding Size,Learning Rate,Batch Size,Dropout Emb,Droput Out,Optimizer,Epoche,PPL, CI PPL 
+ID,Network Type,Layers,Hidden Size,Embedding Size,Learning Rate,Batch Size,Dropout,Optimizer,Epoche,PPL, CI PPL 
 1,WeightTying,1,100,100,2,32,None,SGD,27,131.87,114.62-151.95
 2,WeightTying,1,300,300,2,32,None,SGD,17,119.32,102.36-138.95
 3,WeightTying,1,500,500,2,32,None,SGD,14,120.79,103.31-141.05
@@ -12,3 +12,6 @@ ID,Network Type,Layers,Hidden Size,Embedding Size,Learning Rate,Batch Size,Dropo
 11,VarDropout,1,700,700,2,32,0.5,SGD,32,94.68,80.56-111.19
 12,VarDropout,1,700,700,2,32,0.7,SGD,60,89.27,76.25-104.51
 13,NTAvSGD,1,700,700,3,32,0.7,NTAvSGD,59,87.35,74.52-102.41
+14,NTAvSGD,1,700,700,3,32,0.8,NTAvSGD,91,93.13,79.91-108.46
+15,NTAvSGD,2,450,450,3,32,0.5,NTAvSGD,28,93.71,79.86-109.83
+16,NTAvSGD,2,450,450,3,32,0.7,NTAvSGD,48,90.06,76.92-105.15

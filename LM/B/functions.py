@@ -724,15 +724,14 @@ def save_test_results(hyperparameters, epoche, ppl, ci_ppl):
     emb_size = hyperparameters['emb_size']
     batch_size = hyperparameters['batch_size']
     n_layers = hyperparameters['n_layers']
-    dropout_emb = hyperparameters['dropout_emb']
-    dropout_out = hyperparameters['dropout_out']
+    dropout = hyperparameters['dropout']
     optimizer = hyperparameters['optimizer']
 
     experiment_id = get_last_experiment_id(filename) + 1    # Leggi l'ultimo ID
 
     # If the file does not exist, create it and write the header
     with open(filename, 'a') as f:
-        f.write(f'{experiment_id},{label},{n_layers},{hid_size},{emb_size},{lr},{batch_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
+        f.write(f'{experiment_id},{label},{n_layers},{hid_size},{emb_size},{lr},{batch_size},{dropout},{optimizer},{epoche},{round(ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
 
 
 
