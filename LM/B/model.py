@@ -11,7 +11,7 @@ import numpy as np
 # -------------------------------------------------------
 
 class LM_LSTM_WT(nn.Module):
-    def __init__(self, emb_size, hidden_size, output_size, pad_index=0, n_layers=1, dropout=0.5):
+    def __init__(self, emb_size, hidden_size, output_size, pad_index=0, n_layers=1):
         super(LM_LSTM_WT, self).__init__()
 
         # For weight tying, the embedding size must be equal to the hidden size

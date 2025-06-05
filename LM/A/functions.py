@@ -235,7 +235,6 @@ def save_model(model, path):
 
 
 
-
 # ------------------------------------------------------------------------------
 # Function: plot_training_progress
 #

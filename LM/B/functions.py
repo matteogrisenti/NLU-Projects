@@ -2,6 +2,7 @@ import math
 import copy
 import os
 import torch
+import shutil
 
 import numpy as np
 import torch.nn as nn
@@ -13,7 +14,7 @@ from torch import optim
 from functools import partial
 from torch.utils.data import DataLoader
 
-from utils import collate_fn
+from utils import collate_fn, read_file, Lang, PennTreeBank
 from model import LM_LSTM_WT, LM_LSTM_VD
 
 # ------------------------------------------------------------------------------
@@ -67,52 +68,9 @@ def train_loop(data, optimizer, criterion, model, clip=5):
 
 
 
+
 # ------------------------------------------------------------------------------
 # Function: eval_loop
-#
-# Description: Evaluates the performance of a trained language model on a given dataset
-# (typically the dev set). Computes key evaluation metrics such as:
-#     - Perplexity (PPL)
-#     - Average loss
-#
-# Parameters:
-#     data (iterable): A dataset or dataloader providing evaluation samples.
-#                      Each sample should be a dictionary with the following keys:
-#                          - "source": input token IDs (tensor)
-#                          - "target": target token IDs (tensor)
-#                          - "number_tokens": number of tokens in the target sequence
-#     eval_criterion (callable): The loss function used for evaluation (e.g., nn.CrossEntropyLoss).
-#     model (nn.Module): The trained model to be evaluated.
-#
-# Returns:
-#     ppl (float): Perplexity over the dataset.
-#     loss_to_return (float): Average loss normalized by the number of tokens.
-# ------------------------------------------------------------------------------
-def eval_loop(data, eval_criterion, model):
-    
-    model.eval()
-    loss_to_return = []
-    loss_array = []
-    number_of_tokens = []
-
-    # softmax = nn.Softmax(dim=1) # Use Softmax if you need the actual probability
-    with torch.no_grad(): # It used to avoid the creation of computational graph
-        for sample in data:
-            output = model(sample['source'])
-            loss = eval_criterion(output, sample['target'])
-
-            loss_array.append(loss.item())
-            number_of_tokens.append(sample["number_tokens"])
-            
-    ppl = math.exp(sum(loss_array) / sum(number_of_tokens))
-    loss_to_return = sum(loss_array) / sum(number_of_tokens)
-
-    return ppl, loss_to_return
-
-
-
-# ------------------------------------------------------------------------------
-# Function: test_eval_loop
 #
 # Description: Evaluates the performance of a trained language model on a given dataset
 # (typically the test set). Computes key evaluation metrics such as:
@@ -138,7 +96,7 @@ def eval_loop(data, eval_criterion, model):
 #     sem_ppl (float or None): Standard Error of the Mean for the perplexity.
 #     ci_ppl (tuple or None): 95% Confidence Interval for the perplexity.
 # ------------------------------------------------------------------------------
-def test_eval_loop(data, eval_criterion, model):
+def eval_loop(data, eval_criterion, model):
     
     model.eval()
     loss_to_return = []
@@ -178,6 +136,7 @@ def test_eval_loop(data, eval_criterion, model):
     ci_ppl = (np.exp(ci_loss[0]), np.exp(ci_loss[1]))
 
     return ppl, loss_to_return, sem_loss, ci_loss, sem_ppl, ci_ppl
+
 
 
 
@@ -223,33 +182,37 @@ def init_weights(mat):
 
 
 
+
 # ------------------------------------------------------------------------------
 # Function: path_define
 #
 # Description:
-#     Constructs a descriptive and unique string identifier for saving model-relatedmartifacts. 
-#     The identifier includes key hyperparameters to ensure easy traceability and reproducibility of experiments.
+#     Constructs a identifier for save a model based on it's hyperparameters. 
 #
 # Parameters:
-#     LABEL (str): Identifier for the model or experiment.
-#     LR (float): Learning rate used in training.
-#     HID_SIZE (int): Size of the hidden layers in the model.
-#     EMB_SIZE (int): Size of the embedding vectors.
-#     BATCH_SIZE (int): Size of the training batches.
-#     N_LAYERS (int): Number of layers in the model.
-#     DROPOUT: Dropout rate
-#     OPTIMIZER (str): Optimizer used for training (e.g., 'Adam', 'SGD').
+#     hyperparameters: the hyperparameters configuration of the model to be trained
 #
 # Returns:
 #     path (str): A formatted string with all the hyperparameters embedded,
-#                 suitable for use in filenames or directory paths.
 # ------------------------------------------------------------------------------
-def path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, N_LAYERS, DROPOUT, OPTIMIZER):
-    path = f"{LABEL}_lr-{str(LR).replace('.', ',')}_hid-{HID_SIZE}_emb-{EMB_SIZE}_batch-{BATCH_SIZE}_layers-{N_LAYERS}"
-    if DROPOUT is not None:
-        path += f"_drop-{str(DROPOUT).replace('.', ',')}"
-    path += f"_{OPTIMIZER}"
+def path_define(hyperparameters):
+
+    label = hyperparameters['label']
+    lr = hyperparameters['learning_rate']
+    hid_size = hyperparameters['hid_size']
+    emb_size = hyperparameters['emb_size']
+    batch_size = hyperparameters['batch_size']
+    n_layers = hyperparameters['n_layers']
+    dropout = hyperparameters['dropout']
+    optimizer = hyperparameters['optimizer']
+
+
+    path = f"{label}_lr-{str(lr).replace('.', ',')}_hid-{hid_size}_emb-{emb_size}_batch-{batch_size}_layers-{n_layers}"
+    if dropout is not None:
+        path += f"_dropout-{str(dropout).replace('.', ',')}"
+    path += f"_{optimizer}"
     return path
+
 
 
 
@@ -266,8 +229,9 @@ def path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, N_LAYERS, DROPOUT, OP
 #     path (str): The path that encode the hyperparameters of the model.
 # ------------------------------------------------------------------------------
 def save_model(model, path):
-    path = f'bin/' + path + f'.pt'
+    path = f'bin/others/' + path + f'.pt'
     torch.save(model.state_dict(), path)
+
 
 
 
@@ -329,6 +293,7 @@ def plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_dev_val
 
 
 
+
 # ------------------------------------------------------------------------------
 # Function: get_last_experiment_id
 #
@@ -352,30 +317,20 @@ def get_last_experiment_id(filename):
 
 
 
+
 # ------------------------------------------------------------------------------
-# Function: save_experiment_results
+# Function: save_dev_results
 #
 # Description:
-#     Appends a new row to the `experiments.csv` file, logging key details and
+#     Appends a new row to the `dev.csv` file, logging key details and
 #     evaluation metrics from a trained model experiment. This includes model
 #     configuration, optimizer, number of training epochs, and test set performance
 #     such as perplexity, normalized loss, standard error, and confidence intervals.
 #
 # Parameters:
-#     network_type (str): The type/name of the network architecture used.
-#     lr (float): Learning rate used during training.
-#     layers (int): Number of layers in the model.
-#     batch_size (int): Size of the training batches.
-#     hidden_size (int): Size of the hidden layers in the model.ù
-#     emb_size (int): Dimensionality of the embedding layer.
-#     dropout (float): Dropout rate 
-#     optimizer (str): Optimizer used (e.g., 'Adam', 'SGD').
+#     hyperparameters: the hyperparameters configuration of the model to be trained
 #     epoche (int): Number of epochs the model was trained.
-#     test_ppl (float): Perplexity on the test set.
-#     lest_loss_norm (float): Normalized test loss.
-#     sem_loss (float): Standard Error of the Mean (SEM) for test loss.
-#     ci_loss (tuple): 95% Confidence Interval for test loss.
-#     sem_ppl (float): Standard Error of the Mean (SEM) for test perplexity.
+#     ppl (float): Perplexity on the test set.
 #     ci_ppl (tuple): 95% Confidence Interval for test perplexity.
 #
 # Behavior:
@@ -384,20 +339,25 @@ def get_last_experiment_id(filename):
 #     - Appends all values (rounded to 2 decimals) to the file.
 #
 # Output:
-#     A new line is added to 'experiments.csv' recording the current experiment.
+#     A new line is added to 'dev.csv' recording the current experiment.
 # ------------------------------------------------------------------------------
-def save_experiment_results(network_type, lr, layers, batch_size, hidden_size, emb_size, dropout, 
-                            optimizer, epoche, test_ppl, lest_loss_norm, sem_loss, ci_loss, 
-                            sem_ppl, ci_ppl):
-    filename = 'experiments.csv'
+def save_dev_results(hyperparameters, epoche, ppl, ci_ppl):
+    filename = 'results/dev.csv'
+
+    label = hyperparameters['label']
+    lr = hyperparameters['learning_rate']
+    hid_size = hyperparameters['hid_size']
+    emb_size = hyperparameters['emb_size']
+    batch_size = hyperparameters['batch_size']
+    n_layers = hyperparameters['n_layers']
+    dropout = hyperparameters['dropout']
+    optimizer = hyperparameters['optimizer']
 
     experiment_id = get_last_experiment_id(filename) + 1    # Leggi l'ultimo ID
-    file_exists = os.path.isfile(filename)                  # Check if the file exists  
-    
-    # print("File exists: ", file_exists)
+
     # If the file does not exist, create it and write the header
     with open(filename, 'a') as f:
-        f.write(f'{experiment_id},{network_type},{lr},{layers},{batch_size},{hidden_size},{emb_size},{dropout},{optimizer},{epoche},{round(test_ppl, 2)},{round(lest_loss_norm, 2)},{round(sem_loss, 2)},{round(ci_loss[0], 2)}-{round(ci_loss[1], 2)},{round(sem_ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
+        f.write(f'{experiment_id},{label},{n_layers},{hid_size},{emb_size},{lr},{batch_size},{dropout},{optimizer},{epoche},{round(ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
 
 
 
@@ -407,106 +367,84 @@ def save_experiment_results(network_type, lr, layers, batch_size, hidden_size, e
 # Description:
 #     Trains a language model (LM) using the Penn Treebank dataset with
 #     specified hyperparameters. Handles full pipeline from data preprocessing,
-#     model initialization, training loop with early stopping, and evaluation.
-#     Also manages logging, saving the best-performing model, and visualizing
-#     training metrics such as loss and perplexity.
+#     model training loop with early stopping, and evaluation.
+#     Save the best-performing model and it's evaluation results. 
 #
 # Parameters:
-#     train_dataset (Dataset): Training dataset containing tokenized sentences.
-#     dev_dataset (Dataset): Validation dataset containing tokenized sentences.
-#     test_dataset (Dataset): Test dataset for final evaluation of the model.
-#     lang (Lang): Language object containing vocabulary mapping (word2id, id2word).
-#     BATCH_SIZE (int): Number of samples per training batch.
-#     HID_SIZE (int): Size of the RNN hidden layers.
-#     EMB_SIZE (int): Dimensionality of word embeddings.
-#     LR (float): Learning rate used by the optimizer.
-#     DROPOUT (float): Dropout probability 
-#     CLIP (float): Gradient clipping threshold to stabilize training.
-#     OPTIMIZER (str): Choice of optimizer, either 'SGD' or 'Adam'.
-#     DEVICE (torch.device): Device on which to perform training (CPU or GPU).
-#     LABEL (str, optional): Identifier for the experiment run. Default is "exp".
+#     model: the model to be trained
+#     hyperparameters: the hyperparameters configuration of the model to be trained
+#     device: the device where execute the training
 #
 # Behavior:
 #     - Loads and tokenizes the Penn Treebank dataset.
-#     - Constructs dataloaders for training, validation, and testing.
-#     - Initializes and trains a language model with early stopping.
-#     - Saves the best model and logs its performance.
-#     - Plots training curves for loss and perplexity over epochs.
-#     - Evaluates final model on test data and records performance metrics.
+#     - Constructs dataloaders for training, validation.
+#     - Trains the model with early stopping.
+#     - Saves the best model and it's evaluation results.
+#     - Plots training curves of loss over epochs.
 #
-# Output:
-#     - Saves the best model to disk.
-#     - Outputs training progress to console.
-#     - Saves training visualization plots.
-#     - Logs final test evaluation metrics via `save_experiment_results`.
 # ------------------------------------------------------------------------------
-def train_model(
-    train_dataset, 
-    dev_dataset,
-    test_dataset,
-    lang,
-    BATCH_SIZE,
-    HID_SIZE,
-    EMB_SIZE,
-    N_LAYERS,
-    LR,
-    DROPOUT,
-    CLIP,
-    OPTIMIZER,
-    DEVICE,
-    LABEL="exp"
-):
-    print("HYPERPARAMETERS:")
-    print("\tBatch size: ", BATCH_SIZE)
-    print("\tHidden size: ", HID_SIZE)  
-    print("\tEmbedding size: ", EMB_SIZE)
-    print("\tNumber of layers: ", N_LAYERS)
-    print("\tLearning rate: ", LR)
-    print("\tDropout: ", DROPOUT)
-    print("\tOptimizer: ", OPTIMIZER)
-    print("\tGradient clipping: ", CLIP)
+def train_model( model, hyperparameters, device ):
+    
+    print(f"Training {hyperparameters['label']} with:")
+    print("\tBatch size: ", hyperparameters['batch_size'])
+    print("\tHidden size: ", hyperparameters['hid_size'])  
+    print("\tEmbedding size: ", hyperparameters['emb_size'])
+    print("\tNumber of layers: ", hyperparameters['n_layers'])
+    print("\tLearning rate: ", hyperparameters['learning_rate'])
+    print("\tDropout embedding: ", hyperparameters['dropout'])
+    print("\tOptimizer: ", hyperparameters['optimizer'])
+    print("\tGradient clipping: ", hyperparameters['clip'])
 
-    # --------------------------------------------- DATASET MANAGEMENT ----------------------------------------------
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE,  collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE),  shuffle=True)
-    dev_loader   = DataLoader(dev_dataset,   batch_size=BATCH_SIZE*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE))
-    test_loader  = DataLoader(test_dataset,  batch_size=BATCH_SIZE*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE))
+    # extract some hyperparameter for usability
+    batch_size = hyperparameters['batch_size']
+    optimizer_lab = hyperparameters['optimizer']
+    learning_rate = hyperparameters['learning_rate']
+    clip = hyperparameters['clip']
 
-    print("\tNumber of batches in train_loader:", len(train_loader))
-    print("\tNumber of batches in dev_loader:", len(dev_loader))
-    print("\tNumber of batches in test_loader:", len(test_loader))
+    # 1) DataLoader initialization
+    train_raw = read_file("dataset/PennTreeBank/ptb.train.txt")     # read the train raw data
+    dev_raw = read_file("dataset/PennTreeBank/ptb.valid.txt")       # read the dev raw data
 
-    # --------------------------------------------- MODEL MANAGEMENT ----------------------------------------------
-    vocab_len = len(lang.word2id)
-    #model = LM_LSTM_WT(EMB_SIZE, HID_SIZE, vocab_len, pad_index=lang.word2id["<pad>"]).to(DEVICE)
-    model = LM_LSTM_VD(EMB_SIZE, HID_SIZE, vocab_len, dropout=DROPOUT, pad_index=lang.word2id["<pad>"]).to(DEVICE)
-    model.apply(init_weights)
+    lang = Lang.load_from_file()
 
-    if OPTIMIZER == 'SGD':
-        optimizer = optim.SGD(model.parameters(), lr=LR)
-    elif OPTIMIZER == 'AdamW':
-        optimizer = optim.AdamW(model.parameters(), lr=LR)
+    train_dataset = PennTreeBank(train_raw, lang)
+    dev_dataset   = PennTreeBank(dev_raw, lang)
+    
+    train_loader = DataLoader(train_dataset, batch_size=batch_size,  collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], device=device),  shuffle=True)
+    dev_loader   = DataLoader(dev_dataset,   batch_size=batch_size*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], device=device))
 
+    # 2) Define the Optimizaer
+    if optimizer_lab == 'SGD':
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+    else:
+        train_model_nt_avsgd(model, train_loader, dev_loader, lang, hyperparameters)
+        return
+        
+
+    # 3) Define the Evaluation Criterion
     criterion_train = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"])
     criterion_eval = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"], reduction='sum')
 
+    # 4) Training
     n_epochs = 100
-    last_epoch = 0
+    last_epoch = 0                      # varaible to store the number of the last epoche
     patience = 3
-    losses_train = []
+    losses_train = []               
     losses_dev = []
     ppl_list_dev = []
     sampled_epochs = []
     best_ppl = math.inf
+    best_ppl_ci = math.inf
     best_model = None
     pbar = tqdm(range(1,n_epochs))
 
     for epoch in pbar:
-        loss = train_loop(train_loader, optimizer, criterion_train, model, CLIP)    
+        loss = train_loop(train_loader, optimizer, criterion_train, model, clip)    
         if epoch % 1 == 0:
             last_epoch += 1 
             sampled_epochs.append(epoch)
             losses_train.append(np.asarray(loss).mean())
-            ppl_dev, loss_dev = eval_loop(dev_loader, criterion_eval, model)
+            ppl_dev, loss_dev, _ , _, _, ci_ppl = eval_loop(dev_loader, criterion_eval, model)
 
             losses_dev.append(np.asarray(loss_dev).mean())
             ppl_list_dev.append(ppl_dev)
@@ -515,6 +453,7 @@ def train_model(
 
             if  ppl_dev < best_ppl:
                 best_ppl = ppl_dev
+                best_ppl_ci = ci_ppl
                 best_model = copy.deepcopy(model).to('cpu')
                 patience = 3
             else:
@@ -524,22 +463,20 @@ def train_model(
                 print(" Early stopping at epoch ", last_epoch, " \n\tBest PPL: ", best_ppl, "\n\tLast PPL:", ppl_list_dev[-3:])
                 break
 
-    best_model.to(DEVICE)
+    best_model.to(device)
 
-    # --------------------------------------------- POST TRAINING -----------------------------------------
-    path = path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, N_LAYERS, DROPOUT, OPTIMIZER)
-    save_model(best_model, path)
+    #  POST TRAINING 
+    path = path_define(hyperparameters)     # compute the unique identifier path
+    save_model(best_model, path)            # save the weights
 
     try: 
         plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, path)
-        #plot_training_progress_wnl(sampled_epochs, losses_train, losses_dev, ppl_list_dev, path)
     except Exception as e:
         print(f"An error occurred while plotting: {e}")
 
-    final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl = test_eval_loop(test_loader, criterion_eval, best_model)    
-    print('Test ppl: ', final_ppl)
+    # save the evaluation performance
+    save_dev_results(hyperparameters, last_epoch, best_ppl, best_ppl_ci)
 
-    save_experiment_results(LABEL ,LR, N_LAYERS, BATCH_SIZE, HID_SIZE, EMB_SIZE, DROPOUT, OPTIMIZER, last_epoch, final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl)
 
 
 
@@ -578,19 +515,11 @@ def train_model(
 #     - Logs final test evaluation metrics via `save_experiment_results`.
 # ------------------------------------------------------------------------------
 def train_model_nt_avsgd(
-    train_dataset, 
-    dev_dataset,
-    test_dataset,
+    model,
+    train_loader, 
+    dev_loader,
     lang,
-    BATCH_SIZE,
-    HID_SIZE,
-    EMB_SIZE,
-    N_LAYERS,
-    LR,
-    DROPOUT,
-    CLIP,
-    DEVICE,
-    LABEL="NTAvSGD",
+    hyperparameters,
     NON_MONO_INTERVAL=5,
     LOGGING_INTERVAL=None,
 ):
@@ -616,33 +545,20 @@ def train_model_nt_avsgd(
         return sum(wi)/(k-T+1)
     """
 
-    # Data loaders
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE,  collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE), shuffle=True)
-    dev_loader   = DataLoader(dev_dataset,   batch_size=BATCH_SIZE*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE))
-    test_loader  = DataLoader(test_dataset,  batch_size=BATCH_SIZE*2, collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], DEVICE=DEVICE))
+    # extract some hyperparameter for usability
+    learning_rate = hyperparameters['learning_rate']
+    clip = hyperparameters['clip']
 
     # The paper suggests that the logging interval L should be the number of iterations in an epoch  .
     if LOGGING_INTERVAL is None:
         LOGGING_INTERVAL = len(train_loader)
 
-    print("HYPERPARAMETERS:")
-    print("\tBatch size: ", BATCH_SIZE)
-    print("\tHidden size: ", HID_SIZE)  
-    print("\tEmbedding size: ", EMB_SIZE)
-    print("\tNumber of layers: ", N_LAYERS)
-    print("\tLearning rate: ", LR)
-    print("\tDropout: ", DROPOUT)
-    print("\tGradient clipping: ", CLIP)
+    print("Training with NT-AVSG:")
     print("\tLogging interval: ", LOGGING_INTERVAL)
     print("\tNon-monotone interval: ", NON_MONO_INTERVAL)
 
 
-    # Model initialization
-    vocab_len = len(lang.word2id)
-    model = LM_LSTM_VD(EMB_SIZE, HID_SIZE, vocab_len, dropout=DROPOUT, pad_index=lang.word2id["<pad>"]).to(DEVICE)
-    model.apply(init_weights)
-    model.train()  
-
+    # 3) Define the Evaluation Criterion
     criterion_train = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"])
     criterion_eval = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"], reduction='sum')
 
@@ -656,6 +572,8 @@ def train_model_nt_avsgd(
     averaged_params = None
     averaging_steps = 0
     best_ppl = math.inf
+    best_ci_ppl = 0 
+    last_epoch = 0
     patience = 3
     n_epochs = 100
 
@@ -667,6 +585,7 @@ def train_model_nt_avsgd(
 
     for epoch in pbar:
         running_loss = 0.0
+        last_epoch = epoch 
         for batch in train_loader:
 
             # Line 3: Compute stochastic gradient ∇ˆf(wk) and take SGD step
@@ -681,12 +600,12 @@ def train_model_nt_avsgd(
             #print("Target shape:", target_reshaped.shape)
             loss = criterion_train(output_reshaped, target_reshaped)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
 
             # 3.2: Update parameters
             for param in model.parameters():
                 if param.grad is not None:
-                    param.data -= LR * param.grad.data
+                    param.data -= learning_rate * param.grad.data
 
             running_loss += loss.item()
 
@@ -696,7 +615,7 @@ def train_model_nt_avsgd(
             if k % LOGGING_INTERVAL == 0 and T == 0:
 
                 # 5: Compute validation perplexity v.
-                ppl, _ = eval_loop(dev_loader, criterion_eval, model)
+                ppl, _ , _ , _, _, _ = eval_loop(dev_loader, criterion_eval, model)
                 model.train()
                 # 6: if t > n and v > min logs[l] then
                 # If you have already made at least n previous evaluations, t > non_monotone_interval
@@ -730,16 +649,16 @@ def train_model_nt_avsgd(
         avg_loss = running_loss / len(train_loader)
         losses_train.append(avg_loss)
 
-        ppl_dev, loss_dev = eval_loop(dev_loader, criterion_eval, model)
+        ppl_dev, loss_dev, _ , _, _, ci_ppl = eval_loop(dev_loader, criterion_eval, model)
         model.train()
         losses_dev.append(loss_dev)
         ppl_list_dev.append(ppl_dev)
 
         pbar.set_description(f"Epoch {epoch} | PPL: {ppl_dev:.2f}")
 
-        
         if ppl_dev < best_ppl:
             best_ppl = ppl_dev
+            best_ci_ppl = ci_ppl
             patience = 3
         else:
             if T > 0:          # Decrease only after averaging
@@ -758,18 +677,126 @@ def train_model_nt_avsgd(
             for i, param in enumerate(model.parameters()):
                 param.data.copy_(averaged_params[i] / averaging_steps)
 
-    # ------------------ POST-TRAINING ------------------
-    model.eval()
-    path = path_define(LABEL, LR, BATCH_SIZE, HID_SIZE, EMB_SIZE, N_LAYERS, DROPOUT, "NTAvSGD")
-    save_model(model, path)
+    #  POST TRAINING 
+    path = path_define(hyperparameters)     # compute the unique identifier path
+    save_model(model, path)            # save the weights
 
-    try:
+    try: 
         plot_training_progress(sampled_epochs, losses_train, losses_dev, ppl_list_dev, path)
     except Exception as e:
-        print(f"Plotting error: {e}")
+        print(f"An error occurred while plotting: {e}")
 
-    final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl = test_eval_loop(test_loader, criterion_eval, model)
-    print(f"Final test PPL: {final_ppl}")
+    # save the evaluation performance
+    save_dev_results(hyperparameters, last_epoch, best_ppl, best_ci_ppl)
 
-    save_experiment_results(LABEL, LR, N_LAYERS, BATCH_SIZE, HID_SIZE, EMB_SIZE, DROPOUT, "NTAvSGD",
-                            epoch, final_ppl, final_loss, sem_loss, ci_loss, sem_ppl, ci_ppl)
+
+
+
+# ------------------------------------------------------------------------------
+# Function: save_test_results
+#
+# Description:
+#     Appends a new row to the `test.csv` file, logging key details and
+#     evaluation metrics from a trained model experiment. This includes model
+#     configuration, optimizer, number of training epochs, and test set performance
+#     such as perplexity, normalized loss, standard error, and confidence intervals.
+#
+# Parameters:
+#     hyperparameters: the hyperparameters configuration of the model to be trained
+#     epoche (int): Number of epochs the model was trained.
+#     ppl (float): Perplexity on the test set.
+#     ci_ppl (tuple): 95% Confidence Interval for test perplexity.
+#
+# Behavior:
+#     - Automatically retrieves the last experiment ID and increments it.
+#     - Creates the CSV file with a header if it does not exist.
+#     - Appends all values (rounded to 2 decimals) to the file.
+#
+# Output:
+#     A new line is added to 'test.csv' recording the current experiment.
+# ------------------------------------------------------------------------------
+def save_test_results(hyperparameters, epoche, ppl, ci_ppl):
+    filename = 'results/test.csv'
+
+    label = hyperparameters['label']
+    lr = hyperparameters['learning_rate']
+    hid_size = hyperparameters['hid_size']
+    emb_size = hyperparameters['emb_size']
+    batch_size = hyperparameters['batch_size']
+    n_layers = hyperparameters['n_layers']
+    dropout_emb = hyperparameters['dropout_emb']
+    dropout_out = hyperparameters['dropout_out']
+    optimizer = hyperparameters['optimizer']
+
+    experiment_id = get_last_experiment_id(filename) + 1    # Leggi l'ultimo ID
+
+    # If the file does not exist, create it and write the header
+    with open(filename, 'a') as f:
+        f.write(f'{experiment_id},{label},{n_layers},{hid_size},{emb_size},{lr},{batch_size},{dropout_emb},{dropout_out},{optimizer},{epoche},{round(ppl, 2)},{round(ci_ppl[0], 2)}-{round(ci_ppl[1], 2)}\n')
+
+
+
+
+# ------------------------------------------------------------------------------
+# Function: test_model
+#
+# Description:
+#     Evaluates a trained language model on the Penn Treebank test set.
+#     Loads the saved best model, processes the test data, computes loss,
+#     perplexity, and confidence intervals, and optionally saves the results.
+#
+# Parameters:
+#     model_class: the class of the model to be loaded (same as used during training)
+#     hyperparameters: dictionary of hyperparameters used during training
+#     device: the device (CPU/GPU) on which to run evaluation
+#
+# Behavior:
+#     - Loads the test dataset.
+#     - Loads the trained model from disk.
+#     - Runs evaluation to compute perplexity, total loss, and confidence interval.
+#     - Prints and saves results.
+# ------------------------------------------------------------------------------
+def test_model(model, hyperparameters, device):
+    print(f"\nTesting model: {hyperparameters['label']}")
+
+    # 1) Load the test dataset
+    test_raw = read_file("dataset/PennTreeBank/ptb.test.txt")
+    lang = Lang.load_from_file()
+    test_dataset = PennTreeBank(test_raw, lang)
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=hyperparameters['batch_size'] * 2,
+        collate_fn=partial(collate_fn, pad_token=lang.word2id["<pad>"], device=device)
+    )
+
+    # 2) Load the saved weight of the model
+    path = path_define(hyperparameters)     # compute the unique identifier path
+    old_path = os.path.join('bin', 'others', f"{path}.pt")
+    new_path = os.path.join('bin', f"{path}.pt")
+
+    # Copy the file if it hasn't been copied already
+    if os.path.exists(old_path) and not os.path.exists(new_path):
+        shutil.copyfile(old_path, new_path)
+
+    # Load saved weights into model
+    model.load_state_dict(torch.load(new_path, map_location=device))
+    model.eval()
+    
+    model.to(device)
+
+    # 3) Define evaluation criterion
+    criterion = nn.CrossEntropyLoss(ignore_index=lang.word2id["<pad>"], reduction='sum')
+
+    # 4) Evaluate the model
+    ppl_test, loss_test, _, _, _, ci_test = eval_loop(test_loader, criterion, model)
+
+    # 5) Output results
+    print(f"\n--- Test Results ---")
+    print(f"Perplexity     : {ppl_test:.4f}")
+    print(f"Loss           : {loss_test:.4f}")
+    print(f"Confidence Int.: {ci_test[0]:.4f} - {ci_test[1]:.4f}")
+
+    # 6) Save results
+    save_test_results(hyperparameters, ppl_test, loss_test, ci_test)
+
+

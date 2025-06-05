@@ -1,3 +1,5 @@
+import os
+import json
 import torch
 import torch.utils.data as data
 
@@ -22,6 +24,8 @@ class Lang():
     def __init__(self, corpus, special_tokens=[]):
         self.word2id = self.get_vocab(corpus, special_tokens)
         self.id2word = {v:k for k, v in self.word2id.items()}
+        
+        self.save_json()
     
     # GET VOCABULARY: create a dictionary that maps each word to an index
     def get_vocab(self, corpus, special_tokens=[]):
@@ -39,6 +43,44 @@ class Lang():
                     i += 1
                     
         return output
+    
+    # Serializes the Lang object to a dictionary for saving to JSON.
+    def to_dict(self):
+        return {
+            'word2id': self.word2id,
+            'id2word': self.id2word,
+        }
+    
+    # Save the Lang in a json file
+    def save_json(self):
+        json_file="dataset/lang.json"
+        os.makedirs(os.path.dirname(json_file), exist_ok=True)
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(self.to_dict(), f, indent=2)
+        print(f"\tVocab JSON saved to {json_file}")
+    
+    # Load a Lang object from the json file
+    @classmethod
+    def load_from_file(cls):
+        json_path="dataset/lang.json"
+        if not os.path.exists(json_path):
+            raise FileNotFoundError(f"Language file not found at {json_path}")
+        
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        obj = cls.__new__(cls)      # create instance without calling __init__
+        obj.word2id = data.get('word2id')
+        obj.id2word = data.get('id2word')
+        return obj
+    
+
+
+
+# This function create a Lang object and save it in a json file 
+def init_lang():
+    train_raw = read_file("dataset/PennTreeBank/ptb.train.txt")
+    lang = Lang(train_raw, ["<pad>", "<eos>"])
     
 
 
@@ -97,7 +139,7 @@ class PennTreeBank (data.Dataset):
 
 
 # COLLATE FUNCTION: This function is used to pad the sequences in a batch to the same length.
-def collate_fn(data, pad_token, DEVICE):
+def collate_fn(data, pad_token, device):
 
     def merge(sequences):   # This function pads the sequences to the same length
         lengths = [len(seq) for seq in sequences]           # Get the lengths of each sequence
@@ -128,8 +170,8 @@ def collate_fn(data, pad_token, DEVICE):
     target, lengths = merge(new_item["target"])
     
     # Move the padded sequences to the specified device
-    new_item["source"] = source.to(DEVICE)
-    new_item["target"] = target.to(DEVICE)
+    new_item["source"] = source.to(device)
+    new_item["target"] = target.to(device)
 
     new_item["number_tokens"] = sum(lengths)
     return new_item
