@@ -18,13 +18,13 @@ vocab_len = len(lang.word2id)           # Compute the Vocabular Len to understan
 pad_index = lang.word2id["<pad>"]       # Get the ID of the pad token 
 
 
-'''
+
 # -------------------------------------------- TRAINING ------------------------------------------------
 #  HYPERPARAMETERS 
 LABEL = 'NTAvSGD'       # WeightTying, VarDropout, NTAvSGD
 BATCH_SIZE = 32                         
-SIZE = 450                  
-N_LAYERS = 2                             
+SIZE = 350                  
+N_LAYERS = 2                            
 DROPOUT = [0.5, 0.7]
 LR = 3
 OPTIMIZER = 'NTAvSGD'   # SGD or NTAvSGD
@@ -55,7 +55,8 @@ for do in DROPOUT:
     
     # Train the model
     train_model( model, hyperparameters, DEVICE )
- '''
+
+'''
 
 
 # -------------------------------------------- TESTING ------------------------------------------------
@@ -102,4 +103,4 @@ NTAvSGD = {                    # 13,NTAvSGD,1,700,700,3,32,0.7,NTAvSGD,59,87.35,
 model = LM_LSTM_VD(NTAvSGD['emb_size'], NTAvSGD['hid_size'], vocab_len,
                     pad_index=pad_index, dropout=NTAvSGD['dropout'] )
 test_model(model, NTAvSGD, DEVICE)
-
+'''
