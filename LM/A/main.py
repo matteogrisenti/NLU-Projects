@@ -18,7 +18,7 @@ vocab_len = len(lang.word2id)           # Compute the Vocabular Len to understan
 pad_index = lang.word2id["<pad>"]       # Get the ID of the pad token 
 
 
-''' 
+
 
 # -------------------------------------------- TRAINING ------------------------------------------------
 #  HYPERPARAMETERS 
@@ -28,7 +28,7 @@ HID_SIZE = 200                           # Original 200
 EMB_SIZE = 300                           # Original 300
 N_LAYERS = [2,3]                              # Original 1
 DROPOUT = 0.5
-LR = 0.001
+LR = 0.0005
 OPTIMIZER = 'AdamW'   # SGD or AdamW
 CLIP = 5            # Clip the gradient -> avoid exploding gradients
 
@@ -54,7 +54,7 @@ for nl in N_LAYERS:
     #                 pad_index=pad_index ).to(DEVICE)
     model = LM_LSTM_DO(hyperparameters['emb_size'], hyperparameters['hid_size'], vocab_len,
                     pad_index=pad_index, out_dropout=hyperparameters['dropout_out'], 
-                    emb_dropout=hyperparameters['dropout_emb']).to(DEVICE)
+                    emb_dropout=hyperparameters['dropout_emb'], n_layers=hyperparameters['n_layers']).to(DEVICE)
     # Initializa the weight of the model
     model.apply(init_weights)
     
@@ -130,4 +130,4 @@ model = LM_LSTM_DO(adam['emb_size'], adam['hid_size'], vocab_len,
 test_model(model, adam, DEVICE)
 
 
-
+''' 
