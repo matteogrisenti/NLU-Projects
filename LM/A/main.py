@@ -18,7 +18,7 @@ vocab_len = len(lang.word2id)           # Compute the Vocabular Len to understan
 pad_index = lang.word2id["<pad>"]       # Get the ID of the pad token 
 
 
-
+'''
 
 # -------------------------------------------- TRAINING ------------------------------------------------
 #  HYPERPARAMETERS 
@@ -62,7 +62,8 @@ for nl in N_LAYERS:
     train_model( model, hyperparameters, DEVICE )
 
 
-'''
+
+''' 
 
 # -------------------------------------------- TESTING ------------------------------------------------
 rnn = {                     # 2,RNN,1,200,300,1,128,None,None,SGD,36,164.44,139.29-194.92
@@ -130,4 +131,3 @@ model = LM_LSTM_DO(adam['emb_size'], adam['hid_size'], vocab_len,
 test_model(model, adam, DEVICE)
 
 
-''' 

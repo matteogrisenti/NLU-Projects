@@ -108,9 +108,12 @@ def testing_model(hyperparameters):
     # Load the checkpoint dict
     checkpoint = torch.load(new_path, weights_only=False)
 
-    # Rebuild the model architecture
-    # model = BiModelIAS(checkpoint['hid_size'], checkpoint['out_slot'], checkpoint['out_int'], checkpoint['emb_size'], checkpoint['vocab_len'], n_layer=checkpoint['n_layer'], pad_index=checkpoint['pad_index']).to(device)
-    model = DoModelIAS(checkpoint['hid_size'], checkpoint['out_slot'], checkpoint['out_int'], checkpoint['emb_size'], checkpoint['vocab_len'], n_layer=checkpoint['n_layer'], pad_index=checkpoint['pad_index'], dropout=checkpoint['dropout']).to(device)
+    if hyperparameters['label'] == 'SimpleIAS':
+        model = ModelIAS(checkpoint['hid_size'], checkpoint['out_slot'], checkpoint['out_int'], checkpoint['emb_size'], checkpoint['vocab_len'], n_layer=checkpoint['n_layer'], pad_index=checkpoint['pad_index']).to(device)
+    elif hyperparameters['label'] == 'Bidirectional':
+        model = BiModelIAS(checkpoint['hid_size'], checkpoint['out_slot'], checkpoint['out_int'], checkpoint['emb_size'], checkpoint['vocab_len'], n_layer=checkpoint['n_layer'], pad_index=checkpoint['pad_index']).to(device)
+    elif hyperparameters['label'] == 'Dropout':
+        model = DoModelIAS(checkpoint['hid_size'], checkpoint['out_slot'], checkpoint['out_int'], checkpoint['emb_size'], checkpoint['vocab_len'], n_layer=checkpoint['n_layer'], pad_index=checkpoint['pad_index'], dropout=checkpoint['dropout']).to(device)
     
     # Load saved weights into model
     model.load_state_dict(checkpoint['model'])
