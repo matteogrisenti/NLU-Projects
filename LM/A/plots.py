@@ -1,5 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import numpy as np
 from matplotlib.lines import Line2D
 import seaborn as sns
@@ -375,6 +376,78 @@ def plot_ppl_by_batchsize_with_ci(csv_path, selected_ids, save_path="PPL_vs_Batc
 
 
 
+
+def plot_test_vs_val_no_margin():
+    """
+    Plot test vs validation scores without error margins.
+    Testing = solid color, Validation = same color with transparency behind.
+    Adds border to bars and increases label sizes.
+    """
+
+    test_scores = [157.00, 139.17, 121.88, 105.69]
+    val_scores = [164.44, 144.84, 126.47, 114.96]
+    labels = ["RNN", "LSTM", "LSTM-DO", "ADAM"]
+
+    # Custom colors from LaTeX RGB definitions
+    colors = [
+        (222/255, 226/255, 230/255),  # startpointcolor
+        (198/255, 222/255, 241/255),  # firstpointcolor
+        (255/255, 231/255, 170/255),  # secondpointcolor
+        (205/255, 151/255, 255/255),  # thirdpointcolor
+    ]
+
+    x = np.arange(len(test_scores)) + 0.5  # Start from 0.5 for spacing
+    width = 0.5  # Wider columns
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    for i in range(len(x)):
+        color = colors[i % len(colors)]
+
+        # Validation bar (background, transparent) with black edge
+        ax.bar(
+            x[i],
+            val_scores[i],
+            width=width,
+            color=color,
+            alpha=0.3,
+            edgecolor='black',
+            linewidth=1.0,
+            label='_nolegend_'
+        )
+
+        # Testing bar (foreground) with black edge
+        ax.bar(
+            x[i],
+            test_scores[i],
+            width=width * 0.7,
+            color=color,
+            edgecolor='black',
+            linewidth=1.0,
+            label='_nolegend_'
+        )
+
+    # Custom legend patches
+    testing_patch = mpatches.Patch(facecolor='gray', edgecolor='black', label='Testing', alpha=1.0)
+    validation_patch = mpatches.Patch(facecolor='gray', edgecolor='black', label='Validation', alpha=0.3)
+    ax.legend(handles=[testing_patch, validation_patch], fontsize=12)
+
+    # Axis labels and title with increased font size
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, rotation=45, ha='right', fontsize=16)
+    ax.set_ylabel("PPL", fontsize=16)
+    ax.set_title("Testing vs Validation Scores", fontsize=16)
+    ax.set_ylim(100, max(val_scores) + 10)
+    ax.tick_params(axis='y', labelsize=14)
+
+    plt.grid(axis='y', linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    plt.savefig('plots/errorbartest.png')
+
+
+
+
 # -----------------------------------------  MAIN --------------------------------------------------
-filename = 'results/dev.csv'
-plot_ppl_heatmap(filename, [4,5,6,7,8,9,10,11,12,13,14,15])
+# filename = 'results/dev.csv'
+# plot_ppl_heatmap(filename, [4,5,6,7,8,9,10,11,12,13,14,15])
+plot_test_vs_val_no_margin()
